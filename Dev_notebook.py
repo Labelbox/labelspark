@@ -1,16 +1,23 @@
 # Databricks notebook source
 #this assumes you have another notebook called api_key and returns variable api_key 
 api_key = dbutils.notebook.run("api_key", 60)
-
+!pip install Labelbox
+!pip install pillow 
 
 # COMMAND ----------
 
 # DBTITLE 1,Get Labelbox Client
 from labelbox import Client
-
-if __name__ == '__main__':
-    API_KEY = api_key
-    client = Client(API_KEY)
+import os
+import json
+import re
+import urllib
+import requests
+import pandas as pd
+import os
+from PIL import Image
+API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJja211MmU1dmxuaTJhMDc1N2J4NjZwdXg0Iiwib3JnYW5pemF0aW9uSWQiOiJja211MmU1djI1Y3hiMDcxMmk0NWg4ZWY0IiwiYXBpS2V5SWQiOiJja213djM1bHJoaG04MDc4OXV1eTVlemtxIiwiaWF0IjoxNjE3MTU5NjI2LCJleHAiOjIyNDgzMTE2MjZ9.sLwMGjF4706WJvw8goO4WvyHwqfSJGAZvefd_MW0kR8"
+client = Client(API_KEY)
 
 # COMMAND ----------
 
@@ -18,46 +25,317 @@ if __name__ == '__main__':
 projects = client.get_projects()
 for project in projects:
     print(project.name, project.uid)
+    
+
 
 # COMMAND ----------
 
 # DBTITLE 1,Load directory of images and/or video
-#can parse the directory and make a Spark table of image URLs
-#https://docs.databricks.com/data/data-sources/aws/amazon-s3.html#access-s3-objects-as-local-files
+# can parse the directory and make a Spark table of image URLs
+
+# Pull information from DataSource 
+dataSet = client.get_dataset("ckmu2e5yi7ttd0709mi4qgnwd")
+df_list = []
+for dataRow in dataSet.data_rows():
+  df_ = {
+    "external_id" : dataRow.external_id, 
+    "row_data": dataRow.row_data 
+  }
+  df_list.append(df_)
+  
+# Create DataFrame 
+images = pd.DataFrame(df_list)
+df_images = spark.createDataFrame(images)
+display(df_images)
+
+# Create a new dataSet: Can import through UI, or create JSON file
+dataSet_new = client.create_dataset(name = "Sample DataSet LabelSpark")
+dataRow_json = []
+for x in df_list:
+  print(x)
+  data_row_urls = [
+    {
+      "external_id" : x['external_id'],
+      "row_data": x['row_data'] 
+    }
+  ]
+  dataSet_new.create_data_rows(data_row_urls)
+
+
 
 # COMMAND ----------
 
 # DBTITLE 1,Create Labelbox Project w/ all the datarows (this will work best w/ Delegated Access I think)
-#Call LB SDK 
+project = client.create_project(name = "Labelspark")
+ontology = """
+{
+    "tools": [
+        {
+            "required": false,
+            "name": "Segmentation",
+            "tool": "superpixel",
+            "color": "#1CE6FF",
+            "classifications": []
+        },
+        {
+            "required": false,
+            "name": "BBox",
+            "tool": "rectangle",
+            "color": "#FF34FF",
+            "classifications": [
+                {
+                    "required": false,
+                    "instructions": "Nested Question",
+                    "name": "nested_question",
+                    "type": "radio",
+                    "options": [
+                        {
+                            "label": "Option 1",
+                            "value": "option_1"
+                        },
+                        {
+                            "label": "Option 2",
+                            "value": "option_2_"
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "classifications": [
+        {
+            "required": false,
+            "instructions": "Global Classifcation",
+            "name": "global_classifcation",
+            "type": "radio",
+            "options": [
+                {
+                    "label": "Option 1",
+                    "value": "option_1_"
+                },
+                {
+                    "label": "Option 2",
+                    "value": "option_2"
+                }
+            ]
+        }
+    ]
+}
+"""
+# Connect Project 
+project.datasets.connect(dataSet_new)
 
-#Create Project
+# Setup frontends 
+frontend = list(client.get_labeling_frontends(where=LabelingFrontend.name == "Editor"))[0]
 
-#Do a bulk add of the datarows to avoid rate limits
+# Attach Frontends
+project.labeling_frontend.connect(project_frontend)
 
+# Attach Project 
+project.setup(project_frontend, ontology)
 
-
-
+print("Project Setup is complete.")
 
 # COMMAND ----------
 
 # DBTITLE 1,Call LB SDK and get back all the labeled assets, pull it into Databricks as Delta Table
 #Bronze Table
+project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
+with urllib.request.urlopen(project.export_labels()) as url:
+  export_file = json.loads(url.read().decode())
 
+# Remove Nesting for the export 
+for x in export_file: 
+        if 'classifications' in x['Label']:
+            count = 0
+            for y in x['Label']['classifications']:
+                answer = x['Label']['classifications'][count]['answer']['title']
+                title = y['title']
+                count = count + 1
+                x[title] = answer
+        del x['Label']
+        del x['Reviews']
+        new_json.append(x)
 
+# Create DF 
+export = pd.DataFrame(new_json)
+df = spark.createDataFrame(export)
+display(df)
 
 # COMMAND ----------
 
 #Silver Table 
+def parse_export(export_file):
+    new_json = []
+    images = []
+    for x in export_file: 
+        if 'classifications' in x['Label']:
+            count = 0
+            for y in x['Label']['classifications']:
+                answer = x['Label']['classifications'][count]['answer']['title']
+                title = y['title']
+                count = count + 1
+                x[title] = answer
+        
+        # Get Image specs's
+        url = x['Labeled Data']
+        image = Image.open(urllib.request.urlopen(url))
+        width, height = image.size
+        # Add to JSON 
+        x['Width'] = width
+        x['Height'] = height 
+        
+        # Delete unneeded features 
+        del x['Label']
+        del x['Agreement']
+        del x['Benchmark Agreement']
+        del x['Benchmark ID']
+        del x['Reviews']
+        del x['Has Open Issues']
+        del x['DataRow ID']
+        del x['ID']
+        # Add values to List
+        new_json.append(x)
+        
+    export = pd.DataFrame(new_json)
+    df = spark.createDataFrame(export)
+    display(df)
+
+if __name__ == '__main__':
+    project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
+    with urllib.request.urlopen(project.export_labels()) as url:
+        export_file = json.loads(url.read().decode())
+    parse_export(export_file)
+
+
+# COMMAND ----------
+
+# Lists for parsing information
+labels = []
+label_frames = []
+video_url = []
+external_id = []
+frames = []
+
+# Export 
+project = client.get_project("ckmvh3yb8a8dv0722mjsqcnzv")
+with urllib.request.urlopen(project.export_labels()) as url:
+  export_file = json.loads(url.read().decode())
+
+# Parse through all Labels to find Labels with contents and skipped
+for x in export_file:
+    # Find Label frame URL's and External ID's
+    if 'frames' in x['Label']:
+        label_frames.append(x["Label"]["frames"])
+        external_id.append(x['External ID'])
+        video_url.append(x['Labeled Data'])
+        
+
+# Parse through label frames and external Ids in asynchronous fashion
+for frame,file_path, video in zip(label_frames, external_id, video_url):
+    # Attach API key to headers
+    headers = {'Authorization': f"Bearer {API_KEY}"}
+    # Pull response out of URL
+    response = requests.get(frame, headers=headers, stream=False)
+    # Get contents of frames URl and save to file
+    for frame_line in response.iter_lines():
+        # if there is contents
+        if frame_line:
+            # Save frame to file set as external ID
+            frame = json.loads(frame_line.decode('utf-8'))
+            # Remove Schema and Feature ID's
+            frame = re.sub(r'(\'featureId\'|\'schemaId\'): \'\w*\',', '', str(frame))
+            frame = frame.replace("\'", "\"")
+
+            # Additions!
+            frame = frame.replace("True", "\"True\"")
+            frame = frame.replace("False", "\"False\"")
+            frame = json.loads(frame)
+            frame['Video URL'] = str(video)
+            frame['External_ID'] = str(external_id)
+            frames.append(frame)
+count = 0 
+video_json_file = []
+for x in frames: 
+  count = count +1
+  #print(json.dumps(x, indent =4))
+  count = 0
+  #for y in range(len(frame['classifications'])):
+  for y in frame['classifications']:
+      answer = y['answer']['title']
+      title = y['title']
+      x[title] = answer
+  del x['classifications']
+  del x['objects']
+  
+  video_json_file.append(x)
+  
+  if count == 3:
+    break
+
+        #frame['External ID'] = str(external_id)
+
+df_video = pd.DataFrame(video_json_file)
+df_video = spark.createDataFrame(df_video)
+display(df_video)
+        
+
+# COMMAND ----------
+
+# DBTITLE 1,Football Use Case
+Chris_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJja2JpNmZheDNkdWx4MDcyMGk1MGNoanJoIiwib3JnYW5pemF0aW9uSWQiOiJja2JpNmZhd21lYTJ1MDc0MHY4eHo0ZjFoIiwiYXBpS2V5SWQiOiJja213Y3F3MW10NDJlMDc1N2FidjU4dzRiIiwiaWF0IjoxNjE3MTI4ODIwLCJleHAiOjIyNDgyODA4MjB9.Fmd2ETKT4vg2l5YZU5CCq31aT07kjrHqoCpiR8sKgsU"
+
+def parse_export(export_file):
+    new_json = []
+    images = []
+    for x in export_file: 
+        print(x)
+        if "objects" in x['Label']:
+            count = 0
+            for z in x['Label']['objects']:
+                answer = x['Label']['objects'][count]['bbox']
+                title = z['title']
+                count = count + 1
+                x[title] = str(answer)
+        # Delete unneeded features 
+        del x['Label']
+        del x['Agreement']
+        del x['Benchmark Agreement']
+        del x['Benchmark ID']
+        del x['Reviews']
+        del x['Has Open Issues']
+        del x['DataRow ID']
+        del x['ID']
+        # Add values to List
+        new_json.append(x)
+        """
+        # Get Image specs's
+        url = x['Labeled Data']
+        image = Image.open(urllib.request.urlopen(url))
+        width, height = image.size
+        # Add to JSON 
+        x['Width'] = width
+        x['Height'] = height """
+        
+    export = pd.DataFrame(new_json)
+    df = spark.createDataFrame(export)
+    display(df)
+    
+    
+
+if __name__ == '__main__':
+    client = Client(Chris_key)
+    project = client.get_project("ckf4r0tqd15sl0799v1u0pk5i")
+    
+    with urllib.request.urlopen(project.export_labels()) as url:
+        export_file = json.loads(url.read().decode())
+    parse_export(export_file)
+
 
 
 
 # COMMAND ----------
 
-#Rinse and repeat for Video --or can video be done at the same time as images??? 
-
-# COMMAND ----------
-
-# DBTITLE 1,QUERIES 
 #Find me all frames with XYZ in it 
 
 #Find me the scenes with a superhero 
