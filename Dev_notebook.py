@@ -6,7 +6,7 @@ import re
 import urllib
 import requests
 import databricks.koalas as pd
-# import koalas as kd
+import pandas as pd2
 import os
 from PIL import Image
 
@@ -155,7 +155,11 @@ ontology = """
 project.datasets.connect(dataSet_new)
 
 # Setup frontends 
-frontend = list(client.get_labeling_frontends(where=LabelingFrontend.name == "Editor"))[0]
+all_frontends = list(client.get_labeling_frontends())
+for frontend in all_frontends:
+    if frontend.name == 'Editor':
+        project_frontend = frontend
+        break
 
 # Attach Frontends
 project.labeling_frontend.connect(project_frontend)
@@ -167,9 +171,51 @@ print("Project Setup is complete.")
 
 # COMMAND ----------
 
+#recoding Bronze 
+
+def parse_export_bronze(export_file):
+    new_json = []
+    images = []
+    for x in export_file: 
+        if 'classifications' in x['Label']:
+            count = 0
+            for y in x['Label']['classifications']:
+                answer = x['Label']['classifications'][count]['answer']['title']
+                title = y['title']
+                count = count + 1
+                x[title] = answer
+        
+        # Get Image specs's
+        url = x['Labeled Data']
+        image = Image.open(urllib.request.urlopen(url))
+        width, height = image.size
+        # Add to JSON 
+        x['Width'] = width
+        x['Height'] = height 
+        
+        # Delete unneeded features 
+        del x['Label']
+        del x['Reviews']
+        # Add values to List
+        new_json.append(x)
+        
+    export = pd2.DataFrame(new_json)
+    df = spark.createDataFrame(export)
+    display(df)
+
+if __name__ == '__main__':
+    project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
+    with urllib.request.urlopen(project.export_labels()) as url:
+        export_file = json.loads(url.read().decode())
+    parse_export_bronze(export_file)
+
+
+# COMMAND ----------
+
 # DBTITLE 1,Call LB SDK and get back all the labeled assets, pull it into Databricks as Delta Table
 #Bronze Table
 project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
+new_json = [] 
 with urllib.request.urlopen(project.export_labels()) as url:
   export_file = json.loads(url.read().decode())
 
@@ -187,9 +233,15 @@ for x in export_file:
         new_json.append(x)
 
 # Create DF 
-export = pd.DataFrame(new_json)
+print(new_json)
+
+export = pd2.DataFrame(new_json)
 df = spark.createDataFrame(export)
 display(df)
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
@@ -226,8 +278,9 @@ def parse_export(export_file):
         # Add values to List
         new_json.append(x)
         
-    export = pd.DataFrame(new_json)
+    export = pd2.DataFrame(new_json)
     df = spark.createDataFrame(export)
+    df.printSchema()
     display(df)
 
 if __name__ == '__main__':
@@ -304,7 +357,7 @@ for x in frames:
 
         #frame['External ID'] = str(external_id)
 
-df_video = pd.DataFrame(video_json_file)
+df_video = pd2.DataFrame(video_json_file)
 df_video = spark.createDataFrame(df_video)
 display(df_video)
         
