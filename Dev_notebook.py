@@ -74,6 +74,7 @@ for table in tblList:
 
 # COMMAND ----------
 
+# DBTITLE 1,Send Unstructured Data to Labelbox for Annotation
 # Send unstructured data to Labelbox 
 
 unstructured_data = spark.table("unstructured_data")
@@ -173,82 +174,8 @@ print("Project Setup is complete.")
 
 # COMMAND ----------
 
-#recoding Bronze 
+# DBTITLE 1,Get Annotation Spark DataFrame from Labelbox
 
-def parse_export_bronze(export_file):
-    new_json = []
-    images = []
-    for x in export_file: 
-        if 'classifications' in x['Label']:
-            count = 0
-            for y in x['Label']['classifications']:
-                answer = x['Label']['classifications'][count]['answer']['title']
-                title = y['title']
-                count = count + 1
-                x[title] = answer
-        
-        # Get Image specs's
-        url = x['Labeled Data']
-        image = Image.open(urllib.request.urlopen(url))
-        width, height = image.size
-        # Add to JSON 
-        x['Width'] = width
-        x['Height'] = height 
-        
-        # Delete unneeded features 
-        del x['Label']
-        del x['Reviews']
-        # Add values to List
-        new_json.append(x)
-        
-    export = pd2.DataFrame(new_json)
-    display(export)
-#     df = spark.createDataFrame(export)
-#     display(df)
-
-if __name__ == '__main__':
-    project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
-    with urllib.request.urlopen(project.export_labels()) as url:
-        export_file = json.loads(url.read().decode())
-    parse_export_bronze(export_file)
-
-
-# COMMAND ----------
-
-# DBTITLE 1,Call LB SDK and get back all the labeled assets, pull it into Databricks as Delta Table
-#Bronze Table
-project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
-new_json = [] 
-with urllib.request.urlopen(project.export_labels()) as url:
-  export_file = json.loads(url.read().decode())
-
-# Remove Nesting for the export 
-for x in export_file: 
-        if 'classifications' in x['Label']:
-            count = 0
-            for y in x['Label']['classifications']:
-                answer = x['Label']['classifications'][count]['answer']['title']
-                title = y['title']
-                count = count + 1
-                x[title] = answer
-        del x['Label']
-        del x['Reviews']
-        new_json.append(x)
-
-# Create DF 
-print(new_json)
-
-export = pd2.DataFrame(new_json)
-df = spark.createDataFrame(export)
-display(df)
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-#Silver Table 
 def parse_export(export_file):
     new_json = []
     images = []
@@ -284,6 +211,8 @@ def parse_export(export_file):
     export = pd2.DataFrame(new_json)
     df = spark.createDataFrame(export)
     df.printSchema()
+    
+    df.registerTempTable("movie_stills_demo")
     display(df)
 
 if __name__ == '__main__':
@@ -374,7 +303,7 @@ def parse_export(export_file):
     new_json = []
     images = []
     for x in export_file: 
-        print(x)
+#         print(x)
         if "objects" in x['Label']:
             count = 0
             for z in x['Label']['objects']:
@@ -402,9 +331,11 @@ def parse_export(export_file):
         x['Width'] = width
         x['Height'] = height """
         
-    export = pd.DataFrame(new_json)
+    export = pd2.DataFrame(new_json)
     df = spark.createDataFrame(export)
+    df.registerTempTable("football_stills_demo")
     display(df)
+    
     
     
 
@@ -418,6 +349,26 @@ if __name__ == '__main__':
 
 
 
+
+# COMMAND ----------
+
+# DBTITLE 1,Sample Queries
+
+
+# COMMAND ----------
+
+# MAGIC %sql 
+# MAGIC 
+# MAGIC SELECT * FROM movie_stills_demo WHERE `Are there people in this still?` = "No"
+
+# COMMAND ----------
+
+# MAGIC %sql 
+# MAGIC SELECT * FROM football_stills_demo 
+# MAGIC WHERE Quarterback IS NOT NULL 
+# MAGIC and `Wide Receiver` IS NOT NULL
+# MAGIC and `Tight End` IS NOT NULL
+# MAGIC and `Running Back` IS NOT NULL
 
 # COMMAND ----------
 
