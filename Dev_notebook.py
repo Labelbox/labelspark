@@ -1,22 +1,28 @@
 # Databricks notebook source
-#this assumes you have another notebook called api_key and returns variable api_key 
-api_key = dbutils.notebook.run("api_key", 60)
-!pip install Labelbox
-!pip install pillow 
-
-# COMMAND ----------
-
-# DBTITLE 1,Get Labelbox Client
-from labelbox import Client
+#imports 
 import os
 import json
 import re
 import urllib
 import requests
-import pandas as pd
+import databricks.koalas as pd
+# import koalas as kd
 import os
 from PIL import Image
-API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJja211MmU1dmxuaTJhMDc1N2J4NjZwdXg0Iiwib3JnYW5pemF0aW9uSWQiOiJja211MmU1djI1Y3hiMDcxMmk0NWg4ZWY0IiwiYXBpS2V5SWQiOiJja213djM1bHJoaG04MDc4OXV1eTVlemtxIiwiaWF0IjoxNjE3MTU5NjI2LCJleHAiOjIyNDgzMTE2MjZ9.sLwMGjF4706WJvw8goO4WvyHwqfSJGAZvefd_MW0kR8"
+
+# !pip install Labelbox ##uncomment if not installed 
+# !pip install pillow 
+# !pip install koalas 
+
+try: API_KEY
+except NameError: 
+  API_KEY = dbutils.notebook.run("api_key", 60)
+
+
+# COMMAND ----------
+
+# DBTITLE 1,Get Labelbox Client
+from labelbox import Client
 client = Client(API_KEY)
 
 # COMMAND ----------
@@ -33,35 +39,69 @@ for project in projects:
 # DBTITLE 1,Load directory of images and/or video
 # can parse the directory and make a Spark table of image URLs
 
-# Pull information from DataSource 
-dataSet = client.get_dataset("ckmu2e5yi7ttd0709mi4qgnwd")
-df_list = []
-for dataRow in dataSet.data_rows():
-  df_ = {
-    "external_id" : dataRow.external_id, 
-    "row_data": dataRow.row_data 
-  }
-  df_list.append(df_)
-  
-# Create DataFrame 
-images = pd.DataFrame(df_list)
-df_images = spark.createDataFrame(images)
-display(df_images)
+def create_unstructured_dataset(): 
+  # Pull information from Data Lake or other storage  
+  dataSet = client.get_dataset("ckmu2e5yi7ttd0709mi4qgnwd")
+  df_list = []
+  for dataRow in dataSet.data_rows():
+      df_ = {
+          "external_id": dataRow.external_id,
+          "row_data": dataRow.row_data
+      }
+      df_list.append(df_)
 
-# Create a new dataSet: Can import through UI, or create JSON file
+  # Create DataFrame 
+  images = pd.DataFrame(df_list)
+  df_images = images.to_spark()
+  display(df_images)
+  df_images.registerTempTable("unstructured_data")
+  # df_images = spark.createDataFrame(images) 
+
+tblList = spark.catalog.listTables()
+for table in tblList: 
+    if table.name == "unstructured_data": 
+      print("Unstructured data table exists")
+    else:
+      print("Table does not exist, creating table")
+      create_unstructured_dataset() 
+      
+
+# COMMAND ----------
+
+# MAGIC %sql 
+# MAGIC 
+# MAGIC select * from unstructured_data
+
+# COMMAND ----------
+
+# Send unstructured data to Labelbox 
+
+unstructured_data = spark.table("unstructured_data")
+unstructured_data = unstructured_data.to_koalas()
+
 dataSet_new = client.create_dataset(name = "Sample DataSet LabelSpark")
 dataRow_json = []
-for x in df_list:
-  print(x)
+
+#koalas 
+for index, row in unstructured_data.iterrows():
   data_row_urls = [
     {
-      "external_id" : x['external_id'],
-      "row_data": x['row_data'] 
+      "external_id" : row['external_id'],
+      "row_data": row['row_data'] 
     }
   ]
-  dataSet_new.create_data_rows(data_row_urls)
+  print(data_row_urls)
+  #dataSet_new.create_data_rows(data_row_urls)
 
-
+# for x in df_list:
+# #   print(x)
+#   data_row_urls = [
+#     {
+#       "external_id" : x['external_id'],
+#       "row_data": x['row_data'] 
+#     }
+#   ]
+#   dataSet_new.create_data_rows(data_row_urls)
 
 # COMMAND ----------
 
