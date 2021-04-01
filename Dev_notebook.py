@@ -31,8 +31,6 @@ client = Client(API_KEY)
 projects = client.get_projects()
 for project in projects:
     print(project.name, project.uid)
-    
-
 
 # COMMAND ----------
 
@@ -82,7 +80,7 @@ unstructured_data = unstructured_data.to_koalas()
 dataSet_new = client.create_dataset(name = "Sample DataSet LabelSpark")
 dataRow_json = []
 
-#koalas 
+#ported Pandas code to koalas
 for index, row in unstructured_data.iterrows():
   data_row_urls = [
     {
@@ -90,22 +88,13 @@ for index, row in unstructured_data.iterrows():
       "row_data": row['row_data'] 
     }
   ]
-  print(data_row_urls)
-  #dataSet_new.create_data_rows(data_row_urls)
+  #note that we can easily send a batch of rows to Labelbox. Using a simple row-by-row creation for this demo. 
+  dataSet_new.create_data_rows(data_row_urls)
 
-# for x in df_list:
-# #   print(x)
-#   data_row_urls = [
-#     {
-#       "external_id" : x['external_id'],
-#       "row_data": x['row_data'] 
-#     }
-#   ]
-#   dataSet_new.create_data_rows(data_row_urls)
 
 # COMMAND ----------
 
-# DBTITLE 1,Create Labelbox Project w/ all the datarows (this will work best w/ Delegated Access I think)
+# DBTITLE 1,Create a Labelbox Project with Ontology
 project = client.create_project(name = "Labelspark")
 ontology = """
 {
