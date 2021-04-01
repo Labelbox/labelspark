@@ -56,6 +56,8 @@ def create_unstructured_dataset():
   # df_images = spark.createDataFrame(images) 
 
 tblList = spark.catalog.listTables()
+if len(tblList) == 0: create_unstructured_dataset()
+  
 for table in tblList: 
     if table.name == "unstructured_data": 
       print("Unstructured data table exists")
@@ -200,8 +202,9 @@ def parse_export_bronze(export_file):
         new_json.append(x)
         
     export = pd2.DataFrame(new_json)
-    df = spark.createDataFrame(export)
-    display(df)
+    display(export)
+#     df = spark.createDataFrame(export)
+#     display(df)
 
 if __name__ == '__main__':
     project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
