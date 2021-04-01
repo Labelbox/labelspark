@@ -1,5 +1,10 @@
 # Databricks notebook source
-#imports 
+# MAGIC %md
+# MAGIC ##Import SDK and Establish Connection from Databricks##
+
+# COMMAND ----------
+
+# DBTITLE 0,Project Setup
 import os
 import json
 import re
@@ -34,7 +39,7 @@ for project in projects:
 
 # COMMAND ----------
 
-# DBTITLE 1,Load directory of images and/or video
+# DBTITLE 1,Load demo table of images and URLs
 # can parse the directory and make a Spark table of image URLs
 
 def create_unstructured_dataset(): 
@@ -51,7 +56,7 @@ def create_unstructured_dataset():
   # Create DataFrame 
   images = pd.DataFrame(df_list)
   df_images = images.to_spark()
-  display(df_images)
+#   display(df_images)
   df_images.registerTempTable("unstructured_data")
   # df_images = spark.createDataFrame(images) 
 
@@ -68,14 +73,19 @@ for table in tblList:
 
 # COMMAND ----------
 
+# MAGIC %md 
+# MAGIC ##Load Unstructured Data in Databricks##
+
+# COMMAND ----------
+
 # MAGIC %sql 
 # MAGIC 
 # MAGIC select * from unstructured_data
 
 # COMMAND ----------
 
-# DBTITLE 1,Send Unstructured Data to Labelbox for Annotation
-# Send unstructured data to Labelbox 
+# DBTITLE 1,Create Dataset with Labelbox for Annotation
+# Pass image URLs to Labelbox for annotation 
 
 unstructured_data = spark.table("unstructured_data")
 unstructured_data = unstructured_data.to_koalas()
@@ -97,7 +107,7 @@ for index, row in unstructured_data.iterrows():
 
 # COMMAND ----------
 
-# DBTITLE 1,Create a Labelbox Project with Ontology
+# DBTITLE 1,Programmatically Set Up Ontology from Databricks
 project = client.create_project(name = "Labelspark")
 ontology = """
 {
@@ -174,8 +184,40 @@ print("Project Setup is complete.")
 
 # COMMAND ----------
 
-# DBTITLE 1,Get Annotation Spark DataFrame from Labelbox
+# MAGIC %md
+# MAGIC ##Bronze and Silver Annotation Tables##
 
+# COMMAND ----------
+
+def parse_export(export_file):
+    bronze_new_json = []
+    images = []
+    
+    for x in export_file: 
+        # Delete unneeded features 
+        x['Label'] = str(x['Label'])
+        x['Benchmark ID'] = str(x['Benchmark ID'])
+        x['Reviews'] = str(x['Reviews'])
+        
+         # Add values to List
+        bronze_new_json.append(x)
+        
+    export_bronze = pd2.DataFrame(bronze_new_json)
+    df_bronze = spark.createDataFrame(export_bronze)
+    df_bronze.printSchema()
+    df_bronze.registerTempTable("movie_stills_demo")
+    display(df_bronze)
+    
+if __name__ == '__main__':
+    client = Client(API_KEY) #refresh client 
+    project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
+    with urllib.request.urlopen(project.export_labels()) as url:
+        export_file = json.loads(url.read().decode())
+    parse_export(export_file)
+
+# COMMAND ----------
+
+# DBTITLE 1,Refine to Silver Table
 def parse_export(export_file):
     new_json = []
     images = []
@@ -216,6 +258,7 @@ def parse_export(export_file):
     display(df)
 
 if __name__ == '__main__':
+    client = Client(API_KEY) #refresh client 
     project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
     with urllib.request.urlopen(project.export_labels()) as url:
         export_file = json.loads(url.read().decode())
@@ -224,6 +267,7 @@ if __name__ == '__main__':
 
 # COMMAND ----------
 
+# DBTITLE 1,Example of Video Annotations
 # Lists for parsing information
 labels = []
 label_frames = []
@@ -271,34 +315,26 @@ for frame,file_path, video in zip(label_frames, external_id, video_url):
 count = 0 
 video_json_file = []
 for x in frames: 
-  count = count +1
-  #print(json.dumps(x, indent =4))
-  count = 0
-  #for y in range(len(frame['classifications'])):
-  for y in frame['classifications']:
+  #List  frame 1 
+  for y in x['classifications']:
       answer = y['answer']['title']
       title = y['title']
       x[title] = answer
+      
   del x['classifications']
   del x['objects']
-  
   video_json_file.append(x)
   
-  if count == 3:
-    break
-
-        #frame['External ID'] = str(external_id)
-
+  
 df_video = pd2.DataFrame(video_json_file)
 df_video = spark.createDataFrame(df_video)
+df_video.printSchema()
+df_video.registerTempTable("video_frames_demo")
 display(df_video)
-        
 
 # COMMAND ----------
 
 # DBTITLE 1,Football Use Case
-Chris_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJja2JpNmZheDNkdWx4MDcyMGk1MGNoanJoIiwib3JnYW5pemF0aW9uSWQiOiJja2JpNmZhd21lYTJ1MDc0MHY4eHo0ZjFoIiwiYXBpS2V5SWQiOiJja213Y3F3MW10NDJlMDc1N2FidjU4dzRiIiwiaWF0IjoxNjE3MTI4ODIwLCJleHAiOjIyNDgyODA4MjB9.Fmd2ETKT4vg2l5YZU5CCq31aT07kjrHqoCpiR8sKgsU"
-
 def parse_export(export_file):
     new_json = []
     images = []
@@ -322,14 +358,14 @@ def parse_export(export_file):
         del x['ID']
         # Add values to List
         new_json.append(x)
-        """
-        # Get Image specs's
-        url = x['Labeled Data']
-        image = Image.open(urllib.request.urlopen(url))
-        width, height = image.size
-        # Add to JSON 
-        x['Width'] = width
-        x['Height'] = height """
+        
+#         # Get Image specs's
+#         url = x['Labeled Data']
+#         image = Image.open(urllib.request.urlopen(url))
+#         width, height = image.size
+#         # Add to JSON 
+#         x['Width'] = width
+#         x['Height'] = height 
         
     export = pd2.DataFrame(new_json)
     df = spark.createDataFrame(export)
@@ -340,6 +376,7 @@ def parse_export(export_file):
     
 
 if __name__ == '__main__':
+    Chris_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJja2JpNmZheDNkdWx4MDcyMGk1MGNoanJoIiwib3JnYW5pemF0aW9uSWQiOiJja2JpNmZhd21lYTJ1MDc0MHY4eHo0ZjFoIiwiYXBpS2V5SWQiOiJja213Y3F3MW10NDJlMDc1N2FidjU4dzRiIiwiaWF0IjoxNjE3MTI4ODIwLCJleHAiOjIyNDgyODA4MjB9.Fmd2ETKT4vg2l5YZU5CCq31aT07kjrHqoCpiR8sKgsU"
     client = Client(Chris_key)
     project = client.get_project("ckf4r0tqd15sl0799v1u0pk5i")
     
@@ -348,11 +385,6 @@ if __name__ == '__main__':
     parse_export(export_file)
 
 
-
-
-# COMMAND ----------
-
-# DBTITLE 1,Sample Queries
 
 
 # COMMAND ----------
@@ -369,11 +401,3 @@ if __name__ == '__main__':
 # MAGIC and `Wide Receiver` IS NOT NULL
 # MAGIC and `Tight End` IS NOT NULL
 # MAGIC and `Running Back` IS NOT NULL
-
-# COMMAND ----------
-
-#Find me all frames with XYZ in it 
-
-#Find me the scenes with a superhero 
-
-#etc etc etc 
