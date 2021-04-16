@@ -57,10 +57,12 @@ def create_unstructured_dataset():
   df_images.registerTempTable("unstructured_data")
   # df_images = spark.createDataFrame(images) 
 
-tblList = spark.catalog.listTables()
-if len(tblList) == 0: create_unstructured_dataset()
-  
 table_exists = False 
+tblList = spark.catalog.listTables()
+if len(tblList) == 0: 
+  create_unstructured_dataset()
+  table_exists = True
+
 for table in tblList: 
     if table.name == "unstructured_data": 
       print("Unstructured data table exists")
