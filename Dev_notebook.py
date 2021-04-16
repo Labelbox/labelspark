@@ -403,3 +403,7 @@ if __name__ == '__main__':
 # MAGIC and `Wide Receiver` IS NOT NULL
 # MAGIC and `Tight End` IS NOT NULL
 # MAGIC and `Running Back` IS NOT NULL
+
+# COMMAND ----------
+
+

@@ -331,7 +331,7 @@ display(df_video)
 
 # COMMAND ----------
 
-# DBTITLE 1,Football Example
+# DBTITLE 1,Football Use Case
 def parse_export(export_file):
     new_json = []
     images = []
