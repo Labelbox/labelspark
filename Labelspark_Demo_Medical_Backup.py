@@ -41,7 +41,7 @@ for project in projects:
 def create_unstructured_dataset(): 
   print("Creating table of unstructured image data")
   # Pull information from Data Lake or other storage  
-  dataSet = client.get_dataset("ckmu2e5yi7ttd0709mi4qgnwd")
+  dataSet = client.get_dataset("ckni0d2uk0tth0y9u2m780tmq")
   df_list = []
   for dataRow in dataSet.data_rows():
       df_ = {
@@ -57,10 +57,12 @@ def create_unstructured_dataset():
   df_images.registerTempTable("unstructured_data")
   # df_images = spark.createDataFrame(images) 
 
-tblList = spark.catalog.listTables()
-if len(tblList) == 0: create_unstructured_dataset()
-  
 table_exists = False 
+tblList = spark.catalog.listTables()
+if len(tblList) == 0: 
+  create_unstructured_dataset()
+  table_exists = True
+
 for table in tblList: 
     if table.name == "unstructured_data": 
       print("Unstructured data table exists")
@@ -87,7 +89,7 @@ if table_exists == False: create_unstructured_dataset()
 unstructured_data = spark.table("unstructured_data")
 unstructured_data = unstructured_data.to_koalas()
 
-dataSet_new = client.create_dataset(name = "Sample DataSet LabelSpark")
+dataSet_new = client.create_dataset(name = "Demo Medical Labeling Dataset")
 dataRow_json = []
 
 #ported Pandas code to koalas
@@ -105,7 +107,7 @@ for index, row in unstructured_data.iterrows():
 # COMMAND ----------
 
 # DBTITLE 1,Programmatically Set Up Ontology from Databricks
-project = client.create_project(name = "Labelspark")
+project = client.create_project(name = "Labelspark Medical")
 ontology = """
 {
     "tools": [
@@ -114,7 +116,24 @@ ontology = """
             "name": "Segmentation",
             "tool": "superpixel",
             "color": "#1CE6FF",
-            "classifications": []
+            "classifications": [
+                {
+                    "required": false,
+                    "instructions": "Specimen",
+                    "name": "nested_question_1",
+                    "type": "radio",
+                    "options": [
+                        {
+                            "label": "Shape A",
+                            "value": "shape_a"
+                        },
+                        {
+                            "label": "Shape B",
+                            "value": "shape_b"
+                        }
+                    ]
+                }
+            ]
         },
         {
             "required": false,
@@ -124,17 +143,17 @@ ontology = """
             "classifications": [
                 {
                     "required": false,
-                    "instructions": "Nested Question",
-                    "name": "nested_question",
+                    "instructions": "Specimen",
+                    "name": "nested_question_2",
                     "type": "radio",
                     "options": [
                         {
-                            "label": "Option 1",
-                            "value": "option_1"
+                            "label": "Shape A",
+                            "value": "shape_a"
                         },
                         {
-                            "label": "Option 2",
-                            "value": "option_2_"
+                            "label": "Shape B",
+                            "value": "shape_b"
                         }
                     ]
                 }
@@ -144,17 +163,21 @@ ontology = """
     "classifications": [
         {
             "required": false,
-            "instructions": "Global Classifcation",
+            "instructions": "Is it cancerous?",
             "name": "global_classifcation",
             "type": "radio",
             "options": [
                 {
-                    "label": "Option 1",
-                    "value": "option_1_"
+                    "label": "Cancerous",
+                    "value": "cancerous"
                 },
                 {
-                    "label": "Option 2",
-                    "value": "option_2"
+                    "label": "Benign",
+                    "value": "benign"
+                },
+                   {
+                    "label": "Unknown",
+                    "value": "unknown"
                 }
             ]
         }
@@ -202,12 +225,12 @@ def parse_export(export_file):
     export_bronze = pd2.DataFrame(bronze_new_json)
     df_bronze = spark.createDataFrame(export_bronze)
     df_bronze.printSchema()
-    df_bronze.registerTempTable("movie_stills_demo")
+    df_bronze.registerTempTable("medical_subset_demo_bronze")
     display(df_bronze)
     
 if __name__ == '__main__':
     client = Client(API_KEY) #refresh client 
-    project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
+    project = client.get_project("ckni34oxqvdw20712k1jztpr9")
     with urllib.request.urlopen(project.export_labels()) as url:
         export_file = json.loads(url.read().decode())
     parse_export(export_file)
@@ -223,6 +246,13 @@ def parse_export(export_file):
             count = 0
             for y in x['Label']['classifications']:
                 answer = x['Label']['classifications'][count]['answer']['title']
+                title = y['title']
+                count = count + 1
+                x[title] = answer 
+        if 'objects' in x['Label']:
+            count = 0
+            for y in x['Label']['objects']:
+                answer = x['Label']['objects'][count]['bbox']
                 title = y['title']
                 count = count + 1
                 x[title] = answer
@@ -251,12 +281,12 @@ def parse_export(export_file):
     df = spark.createDataFrame(export)
     df.printSchema()
     
-    df.registerTempTable("movie_stills_demo")
+    df.registerTempTable("medical_subset_demo_silver")
     display(df)
 
 if __name__ == '__main__':
     client = Client(API_KEY) #refresh client 
-    project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
+    project = client.get_project("ckni34oxqvdw20712k1jztpr9")
     with urllib.request.urlopen(project.export_labels()) as url:
         export_file = json.loads(url.read().decode())
     parse_export(export_file)
@@ -331,73 +361,21 @@ display(df_video)
 
 # COMMAND ----------
 
-# DBTITLE 1,Football Example
-def parse_export(export_file):
-    new_json = []
-    images = []
-    for x in export_file: 
-#         print(x)
-        if "objects" in x['Label']:
-            count = 0
-            for z in x['Label']['objects']:
-                answer = x['Label']['objects'][count]['bbox']
-                title = z['title']
-                count = count + 1
-                x[title] = str(answer)
-        # Delete unneeded features 
-        del x['Label']
-        del x['Agreement']
-        del x['Benchmark Agreement']
-        del x['Benchmark ID']
-        del x['Reviews']
-        del x['Has Open Issues']
-        del x['DataRow ID']
-        del x['ID']
-        # Add values to List
-        new_json.append(x)
-        
-#         # Get Image specs's
-#         url = x['Labeled Data']
-#         image = Image.open(urllib.request.urlopen(url))
-#         width, height = image.size
-#         # Add to JSON 
-#         x['Width'] = width
-#         x['Height'] = height 
-        
-    export = pd2.DataFrame(new_json)
-    df = spark.createDataFrame(export)
-    df.registerTempTable("football_stills_demo")
-    display(df)
-    
-    
-    
-
-if __name__ == '__main__':
-    Chris_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJja2JpNmZheDNkdWx4MDcyMGk1MGNoanJoIiwib3JnYW5pemF0aW9uSWQiOiJja2JpNmZhd21lYTJ1MDc0MHY4eHo0ZjFoIiwiYXBpS2V5SWQiOiJja213Y3F3MW10NDJlMDc1N2FidjU4dzRiIiwiaWF0IjoxNjE3MTI4ODIwLCJleHAiOjIyNDgyODA4MjB9.Fmd2ETKT4vg2l5YZU5CCq31aT07kjrHqoCpiR8sKgsU"
-    client = Client(Chris_key)
-    project = client.get_project("ckf4r0tqd15sl0799v1u0pk5i")
-    
-    with urllib.request.urlopen(project.export_labels()) as url:
-        export_file = json.loads(url.read().decode())
-    parse_export(export_file)
-
-
-
-
-# COMMAND ----------
-
 # MAGIC %sql 
 # MAGIC 
-# MAGIC SELECT * FROM movie_stills_demo WHERE `Are there people in this still?` = "No"
+# MAGIC SELECT `Labeled Data`,`Cancerous?`, Specimen 
+# MAGIC FROM medical_subset_demo_silver 
+# MAGIC WHERE `Cancerous?` = "Yes"
 
 # COMMAND ----------
 
-# MAGIC %sql 
-# MAGIC SELECT * FROM football_stills_demo 
-# MAGIC WHERE Quarterback IS NOT NULL 
-# MAGIC and `Wide Receiver` IS NOT NULL
-# MAGIC and `Tight End` IS NOT NULL
-# MAGIC and `Running Back` IS NOT NULL
+#advanced logic with Pyspark 
+my_table = (spark.table("medical_subset_demo_silver")
+            .select('Labeled Data', 'Cancerous?', F.col('Specimen')['width'].alias('width'), F.col('Specimen')['height'].alias('height')))
+
+display(my_table
+       .filter((col('height')>=200) & (col('width')>=200))
+       .filter(col('Cancerous?')=='Unknown'))
 
 # COMMAND ----------
 
