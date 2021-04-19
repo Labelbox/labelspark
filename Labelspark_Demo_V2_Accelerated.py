@@ -216,6 +216,63 @@ if __name__ == '__main__':
 
 # COMMAND ----------
 
+# DBTITLE 1,Accelerated Bronze Table Creation Code (NL)
+def jsonToDataFrame(json, schema=None):
+  #code taken from Databricks tutorial https://docs.azuredatabricks.net/_static/notebooks/transform-complex-data-types-python.html
+  reader = spark.read
+  if schema:
+    reader.schema(schema)
+  return reader.json(sc.parallelize([json]))
+
+if __name__ == '__main__':
+    client = Client(API_KEY) #refresh client 
+    project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
+    with urllib.request.urlopen(project.export_labels()) as url:
+        api_response_string = url.read().decode() #this is a string of JSONs 
+    
+    bronze_table = jsonToDataFrame(api_response_string, schema = None)
+    bronze_table.registerTempTable("movie_stills_demo")
+    
+    display(bronze_table)
+        
+
+# COMMAND ----------
+
+if __name__ == '__main__':
+    client = Client(API_KEY) #refresh client 
+    project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
+    bronze_table = spark.table("movie_stills_demo")
+    labels_only = bronze_table.select("DataRow ID","Label").withColumnRenamed("DataRow ID", "DataRowID")
+    labels_and_objects = labels_only.select("DataRowID","Label.*")
+    labels_and_objects = labels_and_objects.to_koalas()
+     
+    new_json = []
+    for index, row in labels_and_objects.iterrows(): #this is potentially very risky buggy code.. can their be index mismatch downstream?
+      #I bet there's an easier way to do this without iterrating through rows, but maybe smart people will figure that out later 
+      my_dictionary = {}
+      
+      for classification in row.classifications: 
+        answer = classification.answer.title #labelbox schema is funny 
+        title = classification.title
+        my_dictionary[title] = answer
+        my_dictionary["DataRowID"] = row.DataRowID
+      new_json.append(my_dictionary)
+    
+    parsed_classifications = pd.DataFrame(new_json).to_spark() #this is all leveraging Spark + Koalas! 
+    bronze_table_simpler = bronze_table.withColumnRenamed("DataRow ID", "DataRowID").select("DataRowID", "Dataset Name", "External ID", "Label")
+    
+    silver_table = bronze_table_simpler.join(parsed_classifications, ["DataRowID"] ,"inner")
+    display(silver_table)
+      
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC 
+# MAGIC select * from movie_stills_demodisp
+
+# COMMAND ----------
+
 # DBTITLE 1,Refine to Silver Table
 def parse_export(export_file):
     new_json = []
