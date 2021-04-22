@@ -388,7 +388,7 @@ if __name__ == '__main__':
 
 # MAGIC %sql 
 # MAGIC 
-# MAGIC SELECT * FROM movie_stills_demo WHERE `Are there people in this still?` = "No"
+# MAGIC SELECT * FROM movie_stills_demo WHERE `Are there people in this still?` = "Yes"
 
 # COMMAND ----------
 
