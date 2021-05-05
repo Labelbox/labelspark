@@ -160,9 +160,6 @@ print("Project Setup is complete.")
 # COMMAND ----------
 
 # DBTITLE 1,Query Labelbox for Bronze Annotation Table
-from pyspark.sql.types import StructType    
-from pyspark.sql.functions import col
-
 def jsonToDataFrame(json, schema=None):
   #code taken from Databricks tutorial https://docs.azuredatabricks.net/_static/notebooks/transform-complex-data-types-python.html
   reader = spark.read
@@ -170,166 +167,21 @@ def jsonToDataFrame(json, schema=None):
     reader.schema(schema)
   return reader.json(sc.parallelize([json]))
 
-def dataframe_schema_enrichment(raw_dataframe, type_dictionary = None):
-  if type_dictionary is None: 
-    type_dictionary = {
-      'Agreement':'integer',
-      'Benchmark Agreement': 'integer',
-      'Created At': 'timestamp',
-      'Updated At': 'timestamp',
-      'Has Open Issues': 'integer',
-      'Seconds to Label': 'float', 
-                        }
-  copy_dataframe = raw_dataframe
-  for column_name in type_dictionary:
-    try: 
-      copy_dataframe = copy_dataframe.withColumn(column_name, col(column_name).cast(type_dictionary[column_name]))
-    except Exception as e: print(e.__class__, "occurred for", column_name,":",type_dictionary[column_name],". Moving to next item.")
-  return copy_dataframe
-
 if __name__ == '__main__':
     client = Client(API_KEY) #refresh client 
-    #project = client.get_project("ckoaqvlhkcyqs0846kkfxtrqm")
     project = client.get_project("ckoamhn1k5clr08584thrrp37") 
-    #project = client.get_project("ckoaqvlhkcyqs0846kkfxtrqm") #inception 
     with urllib.request.urlopen(project.export_labels()) as url:
         api_response_string = url.read().decode() #this is a string of JSONs 
     
-    #testing json schema
-    new_schema = None #StructType.fromJson(json.loads(json_schema))
-    
-    bronze_table = jsonToDataFrame(api_response_string, schema = new_schema)
-    bronze_table = dataframe_schema_enrichment(bronze_table)
+    bronze_table = jsonToDataFrame(api_response_string, schema = None)
     bronze_table.registerTempTable("movie_stills_demo")
     
     display(bronze_table)
-    
-    #print(bronze_table.schema.json())
         
 
 # COMMAND ----------
 
-from pyspark.sql import Row
-
-def is_json(myjson):
-  try:
-    json_object = json.loads(myjson)
-  except ValueError as e:
-    return False
-  return True
-
-def get_title_get_answer(classification_object, my_dictionary = {}, past_titles=[]):
-  #print(classification_object.answer)
-  title = None
-  answer = None
-  if type(classification_object.answer) is list: 
-    print("I'm not sure if this code block is necessary unless you have multiple nested classes at same level")
-
-  elif isinstance(classification_object.answer,Row): 
-    answer = classification_object.answer.title #weird syntax 
-    title = classification_object.title 
-    my_dictionary[title] = answer
-  else:
-    answer = classification_object.answer
-    
-    #I had half written this code to consider nested recursive situations, but it is not needed because our JSON seems to flatten everything anyway 
-#     if len(past_titles) > 0: 
-#       past_titles_string = '-'.join(past_titles)
-#       title = past_titles_string + classification_object.title
-#     else: 
-    title = classification_object.title
-    
-    if is_json(answer): #sometimes the answer is a JSON string; this happens on project ckoamhn1k5clr08584thrrp37
-      print("answer is json for some reason")
-      parsed_answer = json.loads(answer)
-      print(parsed_answer)
-      my_dictionary[title] = parsed_answer['value'] #funky Labelbox syntax where the title is actually the "value" of the answer 
-    else: 
-      my_dictionary[title] = answer
-  
-  return my_dictionary 
-
-#TO-DO
-def get_objects(objects_object, my_dictionary = {}, past_titles=[]): 
-  return my_dictionary
-
-def bronze_to_silver(bronze_table): 
-  labels_only = bronze_table.select("DataRow ID","Label").withColumnRenamed("DataRow ID", "DataRowID")
-  labels_and_objects = labels_only.select("DataRowID","Label.*")
-  labels_and_objects = labels_and_objects.to_koalas()
-     
-  new_json = []
-  for index, row in labels_and_objects.iterrows():
-    my_dictionary = {}
-    print(row.classifications)
-    for classification in row.classifications:
-      my_dictionary = get_title_get_answer(classification, my_dictionary)    
-    for objects in row.objects: 
-      my_dictionary = get_objects(objects, my_dictionary)
-    
-    my_dictionary["DataRowID"] = row.DataRowID #close it out 
-    
-    new_json.append(my_dictionary)
-  
-  parsed_classifications = pd.DataFrame(new_json).to_spark() #this is all leveraging Spark + Koalas! 
-  bronze_table_simpler = bronze_table.withColumnRenamed("DataRow ID", "DataRowID").select("DataRowID", "Dataset Name", "External ID", "Labeled Data")
-  silver_table = bronze_table_simpler.join(parsed_classifications, ["DataRowID"] ,"inner")
-  silver_table = silver_table.withColumnRenamed("DataRowID", "DataRow ID")
-  
-  return silver_table 
-    
-
-if __name__ == '__main__':
-    client = Client(API_KEY) #refresh client 
-    #project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
-    bronze_table = spark.table("movie_stills_demo")
-    silver_table = bronze_to_silver(bronze_table)
-    silver_table.registerTempTable("movie_stills_demo_silver")
-    display(silver_table)
-      
-
-# COMMAND ----------
-
 # DBTITLE 1,Refine to Silver Table 
-def is_json(myjson):
-  try:
-    json_object = json.loads(myjson)
-  except ValueError as e:
-    return False
-  return True
-
-def get_title_get_answer_classifications(classification_object, my_dictionary = {}, past_titles=[]):
-  #print(classification_object.answer)
-  title = None
-  answer = None
-  if type(classification_object.answer) is list: 
-    print("test")
-#     for item in classification_object.answer: 
-#       print("this ran")
-#       title, answer = get_title_get_answer_classifications(item, my_dictionary, past_titles.append(item.title))
-  #elif type(classification_object.answer) is Row()
-  else:
-    answer = classification_object.answer
-    print(type(answer))
-    past_titles_string = ""
-    
-    if len(past_titles) > 0: 
-      past_titles_string = '-'.join(past_titles)
-      title = past_titles_string + classification_object.title
-    else: 
-      title = classification_object.title
-    
-    if is_json(answer):
-      parsed_answer = json.loads(answer)
-      print(parsed_answer)
-      my_dictionary[title] = parsed_answer['value'] #Labelbox syntax 
-    else: 
-      my_dictionary[title] = answer
-  
-  return my_dictionary 
-
-
-
 def bronze_to_silver(bronze_table): 
   labels_only = bronze_table.select("DataRow ID","Label").withColumnRenamed("DataRow ID", "DataRowID")
   labels_and_objects = labels_only.select("DataRowID","Label.*")
@@ -338,17 +190,14 @@ def bronze_to_silver(bronze_table):
   new_json = []
   for index, row in labels_and_objects.iterrows():
     my_dictionary = {}
+    
     for classification in row.classifications:
-      #print(classification)
-#       answer = classification.answer.title 
-#       title = classification.title
-#       my_dictionary[title] = answer
-      #print(classification)
-      my_dictionary = get_title_get_answer(classification, my_dictionary)
+      answer = classification.answer.title 
+      title = classification.title
+      my_dictionary[title] = answer
       my_dictionary["DataRowID"] = row.DataRowID
     new_json.append(my_dictionary)
-  
-  print(new_json)
+    
   parsed_classifications = pd.DataFrame(new_json).to_spark() #this is all leveraging Spark + Koalas! 
   bronze_table_simpler = bronze_table.withColumnRenamed("DataRow ID", "DataRowID").select("DataRowID", "Dataset Name", "External ID", "Labeled Data")
   silver_table = bronze_table_simpler.join(parsed_classifications, ["DataRowID"] ,"inner")
