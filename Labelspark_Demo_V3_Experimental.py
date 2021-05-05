@@ -280,11 +280,15 @@ if __name__ == '__main__':
     schema_fields_array =  list(spark_schema_to_string(bronze_table.schema.jsonValue()))
     print(schema_fields_array)
 
+    #Note that you cannot easily access some nested fields if you must navigate arrays of arrays to get there. You should analyze your schema to pick out columns to look at; this is helpful for debugging and developing. I believe this can be enriched with some JSON parsing, but maybe another day. 
     display(bronze_table.select(col("Label.classifications.title").alias("Classification"),
                                 col("Label.classifications.value").alias("Classification_Response"),  
                                 col("Label.objects.title").alias("Object_Name"),
-#                                 col("Label.objects.classifications.title").alias("Object_classifications")))
-                                 col("Label.objects.instanceURI").alias("Object_URI")))
+                                col("Label.objects.classifications").alias("Object_Classification_Responses"),
+                                col("Label.objects.bbox").alias("Object_bbox"),
+                                col("Label.objects.instanceURI").alias("Object_URI")))
+    
+   # display(bronze_table.select("Label.objects.classifications.title"))
 
 # COMMAND ----------
 
