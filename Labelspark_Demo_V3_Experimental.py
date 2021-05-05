@@ -163,6 +163,22 @@ print("Project Setup is complete.")
 from pyspark.sql.types import StructType    
 from pyspark.sql.functions import col
 
+#helper code from https://pwsiegel.github.io/tech/nested-spark/
+def spark_schema_to_string(schema, progress=''):
+    if schema['type'] == 'struct':
+        for field in schema['fields']:
+            key = field['name']
+            yield from spark_schema_to_string(field, f'{progress}.{key}')
+    elif schema['type'] == 'array':
+        if type(schema['elementType']) == dict:
+            yield from spark_schema_to_string(schema['elementType'], progress)
+        else:
+            yield progress.strip('.')
+    elif type(schema['type']) == dict:
+        yield from spark_schema_to_string(schema['type'], progress)
+    else:
+        yield progress.strip('.')
+
 def jsonToDataFrame(json, schema=None):
   #code taken from Databricks tutorial https://docs.azuredatabricks.net/_static/notebooks/transform-complex-data-types-python.html
   reader = spark.read
@@ -170,6 +186,7 @@ def jsonToDataFrame(json, schema=None):
     reader.schema(schema)
   return reader.json(sc.parallelize([json]))
 
+#this LB-specific method converts schema to proper format based on common field names in our JSON 
 def dataframe_schema_enrichment(raw_dataframe, type_dictionary = None):
   if type_dictionary is None: 
     type_dictionary = {
@@ -204,8 +221,70 @@ if __name__ == '__main__':
     
     display(bronze_table)
     
+
+    
     #print(bronze_table.schema.json())
         
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+#HIGHLY EXPERIMENTAL SUPER BIG BRAIN HACK 
+
+from pyspark.sql.functions import col
+
+
+def bronze_to_silver(bronze_table, schema_fields_array): 
+#   labels_only = bronze_table.select("DataRow ID","Label").withColumnRenamed("DataRow ID", "DataRowID")
+#   labels_and_objects = labels_only.select("DataRowID","Label.*")
+#   labels_and_objects = labels_and_objects.to_koalas()
+     
+  new_json = []
+  for index, row in bronze_table.iterrows():
+    my_dictionary = {}
+    print(row.classifications)
+    for classification in row.classifications:
+      my_dictionary = get_title_get_answer(classification, my_dictionary)    
+    for objects in row.objects: 
+      my_dictionary = get_objects(objects, my_dictionary)
+    
+    my_dictionary["DataRowID"] = row.DataRowID #close it out 
+    
+    new_json.append(my_dictionary)
+  
+  parsed_classifications = pd.DataFrame(new_json).to_spark() #this is all leveraging Spark + Koalas! 
+  bronze_table_simpler = bronze_table.withColumnRenamed("DataRow ID", "DataRowID").select("DataRowID", "Dataset Name", "External ID", "Labeled Data")
+  silver_table = bronze_table_simpler.join(parsed_classifications, ["DataRowID"] ,"inner")
+  silver_table = silver_table.withColumnRenamed("DataRowID", "DataRow ID")
+  
+  return silver_table 
+    
+
+if __name__ == '__main__':
+  
+  
+    client = Client(API_KEY) #refresh client 
+    #project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
+    bronze_table = spark.table("movie_stills_demo")
+    
+    
+#     #explode code 
+#     flat_cols = [c[0] for c in bronze_table.dtypes if c[1][:6] != 'struct']
+#     nested_cols = [c[0] for c in bronze_table.dtypes if c[1][:6] == 'struct']
+#     flat_df = bronze_table.select(*flat_cols, *[c + ".*" for c in nested_cols])
+#     #display(flat_df)
+    
+    schema_fields_array =  list(spark_schema_to_string(bronze_table.schema.jsonValue()))
+    print(schema_fields_array)
+
+    display(bronze_table.select(col("Label.classifications.title").alias("Classification"),
+                                col("Label.classifications.value").alias("Classification_Response"),  
+                                col("Label.objects.title").alias("Object_Name"),
+#                                 col("Label.objects.classifications.title").alias("Object_classifications")))
+                                 col("Label.objects.instanceURI").alias("Object_URI")))
 
 # COMMAND ----------
 
