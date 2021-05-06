@@ -73,14 +73,11 @@ if table_exists == False: create_unstructured_dataset()
 
 # COMMAND ----------
 
-<<<<<<< HEAD
-=======
 import labelspark 
 labelspark.this_is_a_method()
 
 # COMMAND ----------
 
->>>>>>> b4942b65ffccbc23a1828e0f26e7026a9e64e5e7
 # MAGIC %md 
 # MAGIC ##Load Unstructured Data##
 
@@ -95,25 +92,6 @@ labelspark.this_is_a_method()
 # DBTITLE 1,Create Dataset with Labelbox for Annotation
 # Pass image URLs to Labelbox for annotation 
 
-<<<<<<< HEAD
-unstructured_data = spark.table("unstructured_data")
-unstructured_data = unstructured_data.to_koalas()
-
-dataSet_new = client.create_dataset(name = "Sample DataSet LabelSpark")
-dataRow_json = []
-
-#ported Pandas code to koalas
-data_row_urls = [
-    {
-      "external_id" : row['external_id'],
-      "row_data": row['row_data'] 
-    } for index, row in 
-    unstructured_data.iterrows()
-]
-upload_task = dataSet_new.create_data_rows(data_row_urls)
-upload_task.wait_till_done()
-
-=======
 def create_dataset_from_spark(client, spark_dataframe, dataset_name = "Default"): 
   #expects spark dataframe to have two columns: external_id, row_data
   #external_id is the asset name ex: "photo.jpg"
@@ -139,7 +117,6 @@ if __name__ == '__main__':
   unstructured_data = spark.table("unstructured_data")
   dataSet_new = create_dataset_from_spark(client, unstructured_data, "My Sample Dataset")
   
->>>>>>> b4942b65ffccbc23a1828e0f26e7026a9e64e5e7
 
 # COMMAND ----------
 
@@ -181,15 +158,9 @@ for frontend in all_frontends:
         break
 
 # Attach Frontends
-<<<<<<< HEAD
-project_demo2.labeling_frontend.connect(project_frontend)
-
-# Attach Project 
-=======
 project_demo2.labeling_frontend.connect(project_frontend) #how does this work?? 
 
 # Attach Project and Ontology
->>>>>>> b4942b65ffccbc23a1828e0f26e7026a9e64e5e7
 project_demo2.setup(project_frontend, ontology.asdict())
 
 print("Project Setup is complete.")
