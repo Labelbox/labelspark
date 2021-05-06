@@ -136,8 +136,9 @@ print("Project Setup is complete.")
 # COMMAND ----------
 
 # DBTITLE 1,Query Labelbox for Raw Annotations (Bronze Table)
+
 client = Client(API_KEY) #refresh client 
-bronze_table = labelspark.get_annotations(client,"ckoc9avswe2tc08469c5sne5w", spark, sc)
+bronze_table = labelspark.get_annotations(client,"ckmvgzksjdp2b0789rqam8pnt", spark, sc) #ckmvgzksjdp2b0789rqam8pnt = old movie stills dataset
 bronze_table.registerTempTable("movie_stills_demo")
 display(bronze_table)
 
@@ -162,7 +163,14 @@ display(silver_table)
 
 # MAGIC %sql 
 # MAGIC 
-# MAGIC SELECT * FROM silver_table WHERE `Are there birds in this scene?` = "Yes"
+# MAGIC SELECT * FROM silver_table WHERE `Are there people in this still?` = "Yes"
+
+# COMMAND ----------
+
+# MAGIC %sql 
+# MAGIC SELECT * FROM silver_table WHERE 
+# MAGIC `Is there water is this still?` = "Yes" AND 
+# MAGIC `Type of Water` = "Ocean"
 
 # COMMAND ----------
 
