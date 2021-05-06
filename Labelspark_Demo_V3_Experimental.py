@@ -73,6 +73,11 @@ if table_exists == False: create_unstructured_dataset()
 
 # COMMAND ----------
 
+import labelspark 
+labelspark.this_is_a_method()
+
+# COMMAND ----------
+
 # MAGIC %md 
 # MAGIC ##Load Unstructured Data##
 
@@ -87,23 +92,31 @@ if table_exists == False: create_unstructured_dataset()
 # DBTITLE 1,Create Dataset with Labelbox for Annotation
 # Pass image URLs to Labelbox for annotation 
 
-unstructured_data = spark.table("unstructured_data")
-unstructured_data = unstructured_data.to_koalas()
+def create_dataset_from_spark(client, spark_dataframe, dataset_name = "Default"): 
+  #expects spark dataframe to have two columns: external_id, row_data
+  #external_id is the asset name ex: "photo.jpg"
+  #row_data is the URL to the asset 
+  spark_dataframe = spark_dataframe.to_koalas()
+  dataSet_new = client.create_dataset(name = dataset_name)
+  
+  dataRow_json = []
+  #ported Pandas code to koalas
+  data_row_urls = [
+      {
+        "external_id" : row['external_id'],
+        "row_data": row['row_data'] 
+      } for index, row in 
+      spark_dataframe.iterrows()
+  ]
+  upload_task = dataSet_new.create_data_rows(data_row_urls)
+  upload_task.wait_till_done()
+  print("Dataset created in Labelbox.")
+  return dataSet_new
 
-dataSet_new = client.create_dataset(name = "Sample DataSet LabelSpark")
-dataRow_json = []
-
-#ported Pandas code to koalas
-data_row_urls = [
-    {
-      "external_id" : row['external_id'],
-      "row_data": row['row_data'] 
-    } for index, row in 
-    unstructured_data.iterrows()
-]
-upload_task = dataSet_new.create_data_rows(data_row_urls)
-upload_task.wait_till_done()
-
+if __name__ == '__main__':
+  unstructured_data = spark.table("unstructured_data")
+  dataSet_new = create_dataset_from_spark(client, unstructured_data, "My Sample Dataset")
+  
 
 # COMMAND ----------
 
@@ -145,9 +158,9 @@ for frontend in all_frontends:
         break
 
 # Attach Frontends
-project_demo2.labeling_frontend.connect(project_frontend)
+project_demo2.labeling_frontend.connect(project_frontend) #how does this work?? 
 
-# Attach Project 
+# Attach Project and Ontology
 project_demo2.setup(project_frontend, ontology.asdict())
 
 print("Project Setup is complete.")
