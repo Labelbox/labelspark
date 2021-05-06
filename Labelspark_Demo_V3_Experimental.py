@@ -251,19 +251,19 @@ if __name__ == '__main__':
 
 #helper code from https://pwsiegel.github.io/tech/nested-spark/
 def spark_schema_to_string(schema, progress=''):
-    if schema['type'] == 'struct':
-        for field in schema['fields']:
-            key = field['name']
-            yield from spark_schema_to_string(field, f'{progress}.{key}')
-    elif schema['type'] == 'array':
-        if type(schema['elementType']) == dict:
-            yield from spark_schema_to_string(schema['elementType'], progress)
-        else:
-            yield progress.strip('.')
-    elif type(schema['type']) == dict:
-        yield from spark_schema_to_string(schema['type'], progress)
-    else:
-        yield progress.strip('.')
+	if schema['type'] == 'struct':
+		for field in schema['fields']:
+			key = field['name']
+			yield from spark_schema_to_string(field, f'{progress}.{key}')
+	elif schema['type'] == 'array':
+		if type(schema['elementType']) == dict:
+			yield from spark_schema_to_string(schema['elementType'], progress)
+		else:
+			yield progress.strip('.')
+	elif type(schema['type']) == dict:
+		yield from spark_schema_to_string(schema['type'], progress)
+	else:
+		yield progress.strip('.')
         
 def flatten_bronze_table(bronze_table): 
   schema_fields_array =  list(spark_schema_to_string(bronze_table.schema.jsonValue()))
