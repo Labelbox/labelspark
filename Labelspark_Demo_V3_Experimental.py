@@ -159,27 +159,14 @@ print("Project Setup is complete.")
 
 # COMMAND ----------
 
-# DBTITLE 1,Query Labelbox for Bronze Annotation Table
+#imports 
 from pyspark.sql.types import StructType    
 from pyspark.sql.functions import col
 
-#helper code from https://pwsiegel.github.io/tech/nested-spark/
-def spark_schema_to_string(schema, progress=''):
-    if schema['type'] == 'struct':
-        for field in schema['fields']:
-            key = field['name']
-            yield from spark_schema_to_string(field, f'{progress}.{key}')
-    elif schema['type'] == 'array':
-        if type(schema['elementType']) == dict:
-            yield from spark_schema_to_string(schema['elementType'], progress)
-        else:
-            yield progress.strip('.')
-    elif type(schema['type']) == dict:
-        yield from spark_schema_to_string(schema['type'], progress)
-    else:
-        yield progress.strip('.')
+# COMMAND ----------
 
-def jsonToDataFrame(json, schema=None):
+# DBTITLE 1,Query Labelbox for Bronze Annotation Table
+ def jsonToDataFrame(json, schema=None):
   #code taken from Databricks tutorial https://docs.azuredatabricks.net/_static/notebooks/transform-complex-data-types-python.html
   reader = spark.read
   if schema:
@@ -204,23 +191,34 @@ def dataframe_schema_enrichment(raw_dataframe, type_dictionary = None):
     except Exception as e: print(e.__class__, "occurred for", column_name,":",type_dictionary[column_name],". Moving to next item.")
   return copy_dataframe
 
+def get_annotations(client, project_id): 
+  project = client.get_project(project_id)
+  with urllib.request.urlopen(project.export_labels()) as url:
+    api_response_string = url.read().decode() #this is a string of JSONs 
+  
+  bronze_table = jsonToDataFrame(api_response_string)
+  bronze_table = dataframe_schema_enrichment(bronze_table)
+  return bronze_table 
+
 if __name__ == '__main__':
     client = Client(API_KEY) #refresh client 
+    bronze_table = get_annotations(client,"ckoamhn1k5clr08584thrrp37")
+    display(bronze_table)
+    bronze_table.registerTempTable("movie_stills_demo")
+    
     #project = client.get_project("ckoaqvlhkcyqs0846kkfxtrqm")
     #project = client.get_project("ckoamhn1k5clr08584thrrp37") 
     #project = client.get_project("ckoaqvlhkcyqs0846kkfxtrqm") #inception 
-    project = client.get_project("ckoc4obk6lxxa0784w1mr016x")
-    with urllib.request.urlopen(project.export_labels()) as url:
-        api_response_string = url.read().decode() #this is a string of JSONs 
+    #project = client.get_project("ckoc4obk6lxxa0784w1mr016x")
+#     with urllib.request.urlopen(project.export_labels()) as url:
+#         api_response_string = url.read().decode() #this is a string of JSONs 
+
+#     new_schema = None #StructType.fromJson(json.loads(json_schema))
     
-    #testing json schema
-    new_schema = None #StructType.fromJson(json.loads(json_schema))
+#     bronze_table = jsonToDataFrame(api_response_string, schema = new_schema)
+#     bronze_table = dataframe_schema_enrichment(bronze_table)
+#     bronze_table.registerTempTable("movie_stills_demo")
     
-    bronze_table = jsonToDataFrame(api_response_string, schema = new_schema)
-    bronze_table = dataframe_schema_enrichment(bronze_table)
-    bronze_table.registerTempTable("movie_stills_demo")
-    
-    display(bronze_table)
     
 
     
@@ -236,34 +234,71 @@ if __name__ == '__main__':
 # DBTITLE 1,Bronze Table II (Labels Flattened ) 
 from pyspark.sql.functions import col
 
+#helper code from https://pwsiegel.github.io/tech/nested-spark/
+def spark_schema_to_string(schema, progress=''):
+    if schema['type'] == 'struct':
+        for field in schema['fields']:
+            key = field['name']
+            yield from spark_schema_to_string(field, f'{progress}.{key}')
+    elif schema['type'] == 'array':
+        if type(schema['elementType']) == dict:
+            yield from spark_schema_to_string(schema['elementType'], progress)
+        else:
+            yield progress.strip('.')
+    elif type(schema['type']) == dict:
+        yield from spark_schema_to_string(schema['type'], progress)
+    else:
+        yield progress.strip('.')
+        
+def flatten_bronze_table(bronze_table): 
+  schema_fields_array =  list(spark_schema_to_string(bronze_table.schema.jsonValue()))
+    #Note that you cannot easily access some nested fields if you must navigate arrays of arrays to get there, so I do try/except to avoid parsing into those fields. I believe this can be enriched with some JSON parsing, but maybe another day. 
+  valid_schemas = []
+  for schema_field in schema_fields_array:
+    success = None
+    try:
+      success = bronze_table.select(col(schema_field))
+      if success is not None: 
+        valid_schemas.append(schema_field)
+    except Exception as e:
+      print(e.__class__, "occurred for", schema_field, "as it is probably inside an array of JSONs")
+      schema_field_up_one_level = ".".join(schema_field.split(".")[:-1]) #very complicated way of popping the last hierarchy level 
+      try:
+        bronze_table.select(col(schema_field_up_one_level))
+        if schema_field_up_one_level not in valid_schemas:
+          valid_schemas.append(schema_field_up_one_level) 
+      except Exception as e: print(e.__class__, "occurred for", schema_field, "so I'm skipping it")
+        
+  bronze_table = bronze_table.select(*valid_schemas).toDF(*valid_schemas) 
+  
+  return bronze_table 
+
 if __name__ == '__main__':
   
     client = Client(API_KEY) #refresh client 
-    #project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
     bronze_table = spark.table("movie_stills_demo")
-    
-    schema_fields_array =  list(spark_schema_to_string(bronze_table.schema.jsonValue()))
-    print(schema_fields_array)
+    flattened_bronze_table = flatten_bronze_table(bronze_table)
+    display(flattened_bronze_table)
 
-    #Note that you cannot easily access some nested fields if you must navigate arrays of arrays to get there, so I do try/except to avoid parsing into those fields. I believe this can be enriched with some JSON parsing, but maybe another day. 
-    valid_schemas = [] 
-    for schema_field in schema_fields_array: 
-      success = None
-      try: 
-        success = bronze_table.select(col(schema_field))
-        if success is not None: 
-          valid_schemas.append(schema_field)
-      except Exception as e: 
-        print(e.__class__, "occurred for", schema_field, "as it is probably inside an array of JSONs")
-        schema_field_up_one_level = ".".join(schema_field.split(".")[:-1]) #very complicated way of popping the last hierarchy level 
-        try: 
-          bronze_table.select(col(schema_field_up_one_level))
-          if schema_field_up_one_level not in valid_schemas: 
-            valid_schemas.append(schema_field_up_one_level) 
-        except Exception as e: print(e.__class__, "occurred for", schema_field, "so I'm skipping it")
+#     #Note that you cannot easily access some nested fields if you must navigate arrays of arrays to get there, so I do try/except to avoid parsing into those fields. I believe this can be enriched with some JSON parsing, but maybe another day. 
+#     valid_schemas = [] 
+#     for schema_field in schema_fields_array: 
+#       success = None
+#       try: 
+#         success = bronze_table.select(col(schema_field))
+#         if success is not None: 
+#           valid_schemas.append(schema_field)
+#       except Exception as e: 
+#         print(e.__class__, "occurred for", schema_field, "as it is probably inside an array of JSONs")
+#         schema_field_up_one_level = ".".join(schema_field.split(".")[:-1]) #very complicated way of popping the last hierarchy level 
+#         try: 
+#           bronze_table.select(col(schema_field_up_one_level))
+#           if schema_field_up_one_level not in valid_schemas: 
+#             valid_schemas.append(schema_field_up_one_level) 
+#         except Exception as e: print(e.__class__, "occurred for", schema_field, "so I'm skipping it")
     
-    bronze_table2 = bronze_table.select(*valid_schemas).toDF(*valid_schemas)
-    display(bronze_table2) #the ultimate bronze table 
+#     bronze_table2 = bronze_table.select(*valid_schemas).toDF(*valid_schemas)
+#     display(bronze_table2) #the ultimate bronze table 
 
 # COMMAND ----------
 
@@ -310,7 +345,10 @@ def add_json_answers_to_dictionary(title, answer2, my_dictionary):
     
   return my_dictionary 
 
-def bronze_to_silver(bronze_table): 
+def bronze_to_silver(bronze_table):
+  #valid_schemas = list(spark_schema_to_string(bronze_table.schema.jsonValue()))
+  bronze_table = flatten_bronze_table(bronze_table)
+  
   bronze_table = bronze_table.withColumnRenamed("DataRow ID", "DataRowID") 
   bronze_table = bronze_table.to_koalas()
   
@@ -331,35 +369,35 @@ def bronze_to_silver(bronze_table):
         #my_dictionary[title] = answer 
     except Exception as e: 
       print("not here")
-    #objects
-    array_of_objects = [] 
     
-    try: 
-      array_of_objects = row["Label.objects.classifications"]
-    except Exception as e: 
-      pass 
-    
-    for i in range(len(array_of_objects)):
-      if array_of_objects[i] is not None: 
-        for j in range(len(array_of_objects[i])): #there might be multiple objects in the list of objects
-          title = array_of_objects[i][j].title #get the first row in the array 
-          answer = array_of_objects[i][j].answer
-          my_dictionary = add_json_answers_to_dictionary(title, answer, my_dictionary)
-      
     my_dictionary["DataRowID"] = row.DataRowID #close it out 
     new_json.append(my_dictionary)
   
   parsed_classifications = pd.DataFrame(new_json).to_spark() #this is all leveraging Spark + Koalas! 
-
-  return parsed_classifications #silver_table 
+  display(parsed_classifications)
+  
+#   display(bronze_table)
+  #get objects fields to append 
+#   bronze_table = bronze_table.to_spark()
+#   object_columns = [col_name for col_name in bronze_table.columns if "Label.object" in col_name] + ["DataRowID"]
+#   #object_columns.append("DataRowID")
+#   print(object_columns)
+  
+#   object_df = bronze_table.select(col("Label.objects.bbox.height"))
+#   #display(object_df)
+  
+  #empDF.join(deptDF,empDF.emp_dept_id ==  deptDF.dept_id,"inner")
+  bronze_table = bronze_table.to_spark()
+  joined_df = parsed_classifications.join(bronze_table, ["DataRowID"], "inner")
+  joined_df = joined_df.withColumnRenamed("DataRowID", "DataRow ID")
+  
+  
+  return joined_df #silver_table 
     
 
 if __name__ == '__main__':
     client = Client(API_KEY) #refresh client 
-    #project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
-    #bronze_table = spark.table("movie_stills_demo")
-    silver_table = bronze_to_silver(bronze_table2)
-    #silver_table.registerTempTable("movie_stills_demo_silver")
+    silver_table = bronze_to_silver(bronze_table)
     display(silver_table)
       
 
