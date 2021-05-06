@@ -14,6 +14,12 @@ from pyspark.sql.types import StructType
 from pyspark.sql.functions import col
 from pyspark.sql import Row
 import ast
+#
+# #experimental
+# from pyspark.context import SparkContext
+# from pyspark.sql.session import SparkSession
+# sc = SparkContext.getOrCreate();
+# spark = SparkSession(sc)
 
 hello = "world"
 
@@ -43,12 +49,11 @@ def create_dataset_from_spark(client, spark_dataframe, dataset_name="Default"):
 	return dataSet_new
 
 #returns raw bronze annotations
-def get_annotations(client, project_id):
+def get_annotations(client, project_id, spark, sc):
 	project = client.get_project(project_id)
 	with urllib.request.urlopen(project.export_labels()) as url:
 		api_response_string = url.read().decode()  # this is a string of JSONs
-
-	bronze_table = jsonToDataFrame(api_response_string)
+	bronze_table = jsonToDataFrame(api_response_string, spark, sc)
 	bronze_table = dataframe_schema_enrichment(bronze_table)
 	return bronze_table
 
@@ -114,7 +119,7 @@ def bronze_to_silver(bronze_table):
 
 	return joined_df  # silver_table
 
-def jsonToDataFrame(json, schema=None):
+def jsonToDataFrame(json, spark, sc, schema=None):
 	# code taken from Databricks tutorial https://docs.azuredatabricks.net/_static/notebooks/transform-complex-data-types-python.html
 	reader = spark.read
 	if schema:
