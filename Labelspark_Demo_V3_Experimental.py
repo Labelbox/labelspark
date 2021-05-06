@@ -207,8 +207,9 @@ def dataframe_schema_enrichment(raw_dataframe, type_dictionary = None):
 if __name__ == '__main__':
     client = Client(API_KEY) #refresh client 
     #project = client.get_project("ckoaqvlhkcyqs0846kkfxtrqm")
-    project = client.get_project("ckoamhn1k5clr08584thrrp37") 
+    #project = client.get_project("ckoamhn1k5clr08584thrrp37") 
     #project = client.get_project("ckoaqvlhkcyqs0846kkfxtrqm") #inception 
+    project = client.get_project("ckoc4obk6lxxa0784w1mr016x")
     with urllib.request.urlopen(project.export_labels()) as url:
         api_response_string = url.read().decode() #this is a string of JSONs 
     
@@ -232,66 +233,139 @@ if __name__ == '__main__':
 
 # COMMAND ----------
 
-#HIGHLY EXPERIMENTAL SUPER BIG BRAIN HACK 
-
+# DBTITLE 1,Bronze Table II (Labels Flattened ) 
 from pyspark.sql.functions import col
 
-
-def bronze_to_silver(bronze_table, schema_fields_array): 
-#   labels_only = bronze_table.select("DataRow ID","Label").withColumnRenamed("DataRow ID", "DataRowID")
-#   labels_and_objects = labels_only.select("DataRowID","Label.*")
-#   labels_and_objects = labels_and_objects.to_koalas()
-     
-  new_json = []
-  for index, row in bronze_table.iterrows():
-    my_dictionary = {}
-    print(row.classifications)
-    for classification in row.classifications:
-      my_dictionary = get_title_get_answer(classification, my_dictionary)    
-    for objects in row.objects: 
-      my_dictionary = get_objects(objects, my_dictionary)
-    
-    my_dictionary["DataRowID"] = row.DataRowID #close it out 
-    
-    new_json.append(my_dictionary)
-  
-  parsed_classifications = pd.DataFrame(new_json).to_spark() #this is all leveraging Spark + Koalas! 
-  bronze_table_simpler = bronze_table.withColumnRenamed("DataRow ID", "DataRowID").select("DataRowID", "Dataset Name", "External ID", "Labeled Data")
-  silver_table = bronze_table_simpler.join(parsed_classifications, ["DataRowID"] ,"inner")
-  silver_table = silver_table.withColumnRenamed("DataRowID", "DataRow ID")
-  
-  return silver_table 
-    
-
 if __name__ == '__main__':
-  
   
     client = Client(API_KEY) #refresh client 
     #project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
     bronze_table = spark.table("movie_stills_demo")
     
-    
-#     #explode code 
-#     flat_cols = [c[0] for c in bronze_table.dtypes if c[1][:6] != 'struct']
-#     nested_cols = [c[0] for c in bronze_table.dtypes if c[1][:6] == 'struct']
-#     flat_df = bronze_table.select(*flat_cols, *[c + ".*" for c in nested_cols])
-#     #display(flat_df)
-    
     schema_fields_array =  list(spark_schema_to_string(bronze_table.schema.jsonValue()))
     print(schema_fields_array)
 
-    #Note that you cannot easily access some nested fields if you must navigate arrays of arrays to get there. You should analyze your schema to pick out columns to look at; this is helpful for debugging and developing. I believe this can be enriched with some JSON parsing, but maybe another day. 
-    display(bronze_table.select(col("Label.classifications.title").alias("Classification"),
-                                col("Label.classifications.value").alias("Classification_Response"),  
-                                col("Label.objects.title").alias("Object_Name"),
-                                col("Label.objects.classifications").alias("Object_Classification_Responses"),
-                                col("Label.objects.bbox").alias("Object_bbox"),
-                                col("Label.objects.instanceURI").alias("Object_URI")))
+    #Note that you cannot easily access some nested fields if you must navigate arrays of arrays to get there, so I do try/except to avoid parsing into those fields. I believe this can be enriched with some JSON parsing, but maybe another day. 
+    valid_schemas = [] 
+    for schema_field in schema_fields_array: 
+      success = None
+      try: 
+        success = bronze_table.select(col(schema_field))
+        if success is not None: 
+          valid_schemas.append(schema_field)
+      except Exception as e: 
+        print(e.__class__, "occurred for", schema_field, "as it is probably inside an array of JSONs")
+        schema_field_up_one_level = ".".join(schema_field.split(".")[:-1]) #very complicated way of popping the last hierarchy level 
+        try: 
+          bronze_table.select(col(schema_field_up_one_level))
+          if schema_field_up_one_level not in valid_schemas: 
+            valid_schemas.append(schema_field_up_one_level) 
+        except Exception as e: print(e.__class__, "occurred for", schema_field, "so I'm skipping it")
     
-   # display(bronze_table.select("Label.objects.classifications.title"))
+    bronze_table2 = bronze_table.select(*valid_schemas).toDF(*valid_schemas)
+    display(bronze_table2) #the ultimate bronze table 
 
 # COMMAND ----------
 
+# DBTITLE 1,Silver Table Experimental
+from pyspark.sql import Row
+import ast
+
+def is_json(myjson):
+  try:
+    json_object = json.loads(myjson)
+  except Exception as e:
+    return False
+  return True
+
+def is_array_string(mystring): #a very quick and dirty way to see if this is an array string of JSON
+  if mystring[0] == "[" and mystring[-1] == "]": 
+    return True
+  else: return False 
+  
+def add_json_answers_to_dictionary(title, answer2, my_dictionary): 
+  print(answer2)
+  try:
+    convert_from_literal_string = ast.literal_eval(answer2)
+    print(type(convert_from_literal_string))
+    if isinstance(convert_from_literal_string, list): 
+      for item in convert_from_literal_string: #should handle multiple items
+        print(item)
+        my_dictionary = add_json_answers_to_dictionary(item["title"], item, my_dictionary) #recursive call 
+  except Exception as e: 
+    pass 
+  print(answer2)
+  if is_json(answer2): #sometimes the answer is a JSON string; this happens on project ckoamhn1k5clr08584thrrp37
+    print("answer is json")
+    parsed_answer = json.loads(answer2)
+    print(parsed_answer)
+    try: 
+      my_dictionary[title] = parsed_answer["value"] #funky Labelbox syntax where the title is actually the "value" of the answer
+    except Exception as e: 
+      pass#my_dictionary[title] = parsed_answer #just dump it in the dataframe and fix it later 
+#   elif isinstance(answer2, dict):
+#     my_dictionary[title] = answer2["title"]
+  else: 
+    my_dictionary[title] = answer2
+    
+  return my_dictionary 
+
+def bronze_to_silver(bronze_table): 
+  bronze_table = bronze_table.withColumnRenamed("DataRow ID", "DataRowID") 
+  bronze_table = bronze_table.to_koalas()
+  
+  new_json = []
+  for index, row in bronze_table.iterrows():
+    my_dictionary = {}
+    
+    #classifications
+    try: 
+      row["Label.classifications.title"]
+      for i in range(len(row["Label.classifications.title"])): 
+        title = row["Label.classifications.title"][i]
+        try: #this is for deeper nesting 
+          answer = row["Label.classifications.answer"][i]
+        except Exception as e: 
+          answer = row["Label.classifications.answer.title"][i]
+        my_dictionary = add_json_answers_to_dictionary(title, answer, my_dictionary)
+        #my_dictionary[title] = answer 
+    except Exception as e: 
+      print("not here")
+    #objects
+    array_of_objects = [] 
+    
+    try: 
+      array_of_objects = row["Label.objects.classifications"]
+    except Exception as e: 
+      pass 
+    
+    for i in range(len(array_of_objects)):
+      if array_of_objects[i] is not None: 
+        for j in range(len(array_of_objects[i])): #there might be multiple objects in the list of objects
+          title = array_of_objects[i][j].title #get the first row in the array 
+          answer = array_of_objects[i][j].answer
+          my_dictionary = add_json_answers_to_dictionary(title, answer, my_dictionary)
+      
+    my_dictionary["DataRowID"] = row.DataRowID #close it out 
+    new_json.append(my_dictionary)
+  
+  parsed_classifications = pd.DataFrame(new_json).to_spark() #this is all leveraging Spark + Koalas! 
+
+  return parsed_classifications #silver_table 
+    
+
+if __name__ == '__main__':
+    client = Client(API_KEY) #refresh client 
+    #project = client.get_project("ckmvgzksjdp2b0789rqam8pnt")
+    #bronze_table = spark.table("movie_stills_demo")
+    silver_table = bronze_to_silver(bronze_table2)
+    #silver_table.registerTempTable("movie_stills_demo_silver")
+    display(silver_table)
+      
+
+# COMMAND ----------
+
+# DBTITLE 1,Silver Table V2
 from pyspark.sql import Row
 
 def is_json(myjson):
