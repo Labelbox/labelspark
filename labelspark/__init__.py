@@ -15,8 +15,6 @@ from pyspark.sql.functions import col
 from pyspark.sql import Row
 import ast
 
-hello = "world"
-
 def this_is_a_method():
 	print("birds")
 
