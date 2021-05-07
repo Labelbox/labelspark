@@ -14,19 +14,13 @@ from pyspark.sql.types import StructType
 from pyspark.sql.functions import col
 from pyspark.sql import Row
 import ast
-#
-# #experimental
-# from pyspark.context import SparkContext
-# from pyspark.sql.session import SparkSession
-# sc = SparkContext.getOrCreate();
-# spark = SparkSession(sc)
 
 hello = "world"
 
 def this_is_a_method():
 	print("birds")
 
-#upload spark dataframe to Labelbox
+# upload spark dataframe to Labelbox
 def create_dataset_from_spark(client, spark_dataframe, dataset_name="Default"):
 	# expects spark dataframe to have two columns: external_id, row_data
 	# external_id is the asset name ex: "photo.jpg"
@@ -34,7 +28,6 @@ def create_dataset_from_spark(client, spark_dataframe, dataset_name="Default"):
 	spark_dataframe = spark_dataframe.to_koalas()
 	dataSet_new = client.create_dataset(name=dataset_name)
 
-	dataRow_json = []
 	# ported Pandas code to koalas
 	data_row_urls = [
 		{
@@ -48,7 +41,7 @@ def create_dataset_from_spark(client, spark_dataframe, dataset_name="Default"):
 	print("Dataset created in Labelbox.")
 	return dataSet_new
 
-#returns raw bronze annotations
+# returns raw bronze annotations
 def get_annotations(client, project_id, spark, sc):
 	project = client.get_project(project_id)
 	with urllib.request.urlopen(project.export_labels()) as url:
@@ -57,7 +50,7 @@ def get_annotations(client, project_id, spark, sc):
 	bronze_table = dataframe_schema_enrichment(bronze_table)
 	return bronze_table
 
-#processes the bronze table into a flattened one (intermediary to Silver table)
+# processes the bronze table into a flattened one (intermediary to Silver table)
 def flatten_bronze_table(bronze_table):
 	schema_fields_array = list(spark_schema_to_string(bronze_table.schema.jsonValue()))
 	# Note that you cannot easily access some nested fields if you must navigate arrays of arrays to get there, so I do try/except to avoid parsing into those fields. I believe this can be enriched with some JSON parsing, but maybe another day.
@@ -83,7 +76,7 @@ def flatten_bronze_table(bronze_table):
 
 	return bronze_table
 
-#processes bronze table into silver table
+# processes bronze table into silver table
 def bronze_to_silver(bronze_table):
 	# valid_schemas = list(spark_schema_to_string(bronze_table.schema.jsonValue()))
 	bronze_table = flatten_bronze_table(bronze_table)
@@ -126,10 +119,9 @@ def jsonToDataFrame(json, spark, sc, schema=None):
 		reader.schema(schema)
 	return reader.json(sc.parallelize([json]))
 
-#this LB-specific method converts schema to proper format based on common field names in our JSON
-def dataframe_schema_enrichment(raw_dataframe, type_dictionary = None):
-	if type_dictionary is None:
-		type_dictionary = {
+# this LB-specific method converts schema to proper format based on common field names in our JSON
+
+LABELBOX_DEFAULT_TYPE_DICTIONARY = {
 			'Agreement':'integer',
 			'Benchmark Agreement': 'integer',
 			'Created At': 'timestamp',
@@ -137,6 +129,10 @@ def dataframe_schema_enrichment(raw_dataframe, type_dictionary = None):
 			'Has Open Issues': 'integer',
 			'Seconds to Label': 'float',
 		}
+
+def dataframe_schema_enrichment(raw_dataframe, type_dictionary = None):
+	if type_dictionary is None:
+		type_dictionary = LABELBOX_DEFAULT_TYPE_DICTIONARY
 	copy_dataframe = raw_dataframe
 	for column_name in type_dictionary:
 		try:
@@ -167,13 +163,6 @@ def is_json(myjson):
 	except Exception as e:
 		return False
 	return True
-
-
-def is_array_string(mystring):  # a very quick and dirty way to see if this is an array string of JSON
-	if mystring[0] == "[" and mystring[-1] == "]":
-		return True
-	else:
-		return False
 
 
 def add_json_answers_to_dictionary(title, answer2, my_dictionary):
