@@ -62,11 +62,6 @@ if table_exists == False: create_unstructured_dataset()
 
 # COMMAND ----------
 
-import labelspark 
-labelspark.this_is_a_method()
-
-# COMMAND ----------
-
 # MAGIC %md 
 # MAGIC ##Load Unstructured Data##
 
@@ -79,6 +74,7 @@ labelspark.this_is_a_method()
 # COMMAND ----------
 
 # DBTITLE 1,Create Dataset with Labelbox for Annotation
+import labelspark
 unstructured_data = spark.table("unstructured_data")
 dataSet_new = labelspark.create_dataset_from_spark(client, unstructured_data, "My Sample Dataset")
 
@@ -136,7 +132,6 @@ print("Project Setup is complete.")
 # COMMAND ----------
 
 # DBTITLE 1,Query Labelbox for Raw Annotations (Bronze Table)
-
 client = Client(API_KEY) #refresh client 
 bronze_table = labelspark.get_annotations(client,"ckmvgzksjdp2b0789rqam8pnt", spark, sc) #ckmvgzksjdp2b0789rqam8pnt = old movie stills dataset
 bronze_table.registerTempTable("movie_stills_demo")
