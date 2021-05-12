@@ -15,11 +15,8 @@ from pyspark.sql.functions import col
 from pyspark.sql import Row
 import ast
 
-def this_is_a_method():
-	print("birds")
-
 # upload spark dataframe to Labelbox
-def create_dataset_from_spark(client, spark_dataframe, dataset_name="Default"):
+def create_dataset(client, spark_dataframe, dataset_name="Default"):
 	# expects spark dataframe to have two columns: external_id, row_data
 	# external_id is the asset name ex: "photo.jpg"
 	# row_data is the URL to the asset
