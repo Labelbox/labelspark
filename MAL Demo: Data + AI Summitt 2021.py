@@ -1,4 +1,5 @@
 # Databricks notebook source
+# DBTITLE 1,Notebook Setup
 import labelbox
 import requests
 import ndjson
@@ -11,22 +12,18 @@ import matplotlib.pyplot as plt
 
 # COMMAND ----------
 
+# DBTITLE 1,Importing TensorFlow Model 
 # MAGIC %config InlineBackend.figure_format = 'retina'
 # MAGIC 
 # MAGIC from IPython.display import set_matplotlib_formats
 # MAGIC set_matplotlib_formats('retina')
+# MAGIC !git clone https://github.com/Labelbox/labelbox-python.git
+# MAGIC !mv labelbox-python/examples/model_assisted_labeling/*.py .
+# MAGIC !touch __init__.py
 
 # COMMAND ----------
 
-    !git clone https://github.com/Labelbox/labelbox-python.git
-    !mv labelbox-python/examples/model_assisted_labeling/*.py .
-
-# COMMAND ----------
-
-!touch __init__.py
-
-# COMMAND ----------
-
+# DBTITLE 1,General Imports 
 import sys
 sys.path.append('./')
 
@@ -50,6 +47,7 @@ import os
 
 # COMMAND ----------
 
+# DBTITLE 1,Check Successful API Connection w/ Labelbox SDK 
 try: API_KEY
 except NameError: 
   API_KEY = dbutils.notebook.run("api_key", 60)
@@ -57,20 +55,17 @@ except NameError:
 from labelbox import Client
 client = Client(API_KEY)
 
-# COMMAND ----------
-
 ENDPOINT = "https://api.labelbox.com/graphql"
-
-# COMMAND ----------
-
 client = Client(api_key=API_KEY, endpoint=ENDPOINT)
 
 # COMMAND ----------
 
+# DBTITLE 1,Loading TensorFlow Model
 load_model()
 
 # COMMAND ----------
 
+# DBTITLE 1,Set Up Your Ontology with OntologyBuilder 
 # We want to try out a few different tools here.
 ontology_builder = OntologyBuilder(tools=[
     Tool(tool=Tool.Type.BBOX, name="person"),
@@ -81,9 +76,10 @@ ontology_builder = OntologyBuilder(tools=[
 
 # COMMAND ----------
 
+# DBTITLE 1,Project Creation
 # Lets setup a project to label
 # Note see Ontology, Project, and Project_setup notebooks for more information on this section.
-project = client.create_project(name="image_mal_project")
+project = client.create_project(name="MAL Demo")
 dataset = client.create_dataset(name="image_mal_dataset")
 test_img_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Kitano_Street_Kobe01s5s4110.jpg/2560px-Kitano_Street_Kobe01s5s4110.jpg"
 dataset.create_data_row(row_data=test_img_url)
@@ -94,10 +90,12 @@ project.datasets.connect(dataset)
 
 # COMMAND ----------
 
+# DBTITLE 1,Turning on Model Assisted Labeling
 project.enable_model_assisted_labeling()
 
 # COMMAND ----------
 
+# DBTITLE 1,Pulling all Schemas from the Ontology 
 # When we created a project with the ontology defined above, all of the ids were assigned.
 # So lets reconstruct the ontology builder with all of the ids.
 ontology = ontology_builder.from_project(project)
@@ -107,6 +105,7 @@ print(schema_lookup)
 
 # COMMAND ----------
 
+# DBTITLE 1,Create NDJSON
 def create_boxes_ndjson(datarow_id: str, schema_id: str, t: float, l: float,
                         b: float, r: float) -> Dict[str, Any]:
     """
@@ -183,8 +182,7 @@ def create_mask_ndjson(client: Client, datarow_id: str, schema_id: str,
                               axis=2)
     img_bytes = BytesIO()
     Image.fromarray(colorize).save(img_bytes, format="PNG")
-    #* Use your own signed urls so that you can resign the data
-    #* This is just to make the demo work
+
     url = client.upload_data(content=img_bytes.getvalue(), sign=True)
     return {
         "uuid": str(uuid.uuid4()),
@@ -227,6 +225,7 @@ def create_point_ndjson(datarow_id: str, schema_id: str, t: float, l: float,
 
 # COMMAND ----------
 
+# DBTITLE 1,Loading Model Inferences into NDJSON
 nd_box_payloads = []
 nd_mask_payloads = []
 nd_poly_payloads = []
@@ -247,6 +246,7 @@ for data_row in dataset.data_rows():
         elif class_name == "person":
             nd_box_payloads.append(
                 create_boxes_ndjson(data_row.uid, schema_id, *box))
+            
         elif class_name == "car":
             nd_mask_payloads.append(
                 create_mask_ndjson(client, data_row.uid, schema_id, seg,
@@ -260,6 +260,7 @@ for data_row in dataset.data_rows():
 
 # COMMAND ----------
 
+# DBTITLE 1,Visualize Model Inferences 
 image = np.array(Image.open(BytesIO(np_image_bytes[0])))
 image = visualize_bbox_ndjsons(image, nd_box_payloads, (0, 255, 0))
 image = visualize_poly_ndjsons(image, nd_poly_payloads, (0, 0, 255))
@@ -271,10 +272,7 @@ plt.imshow(image)
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
+# DBTITLE 1,Uploading Model Inferences into Labelbox
 # Let's upload!
 annotations = nd_box_payloads + nd_mask_payloads + nd_poly_payloads + nd_point_payloads
 upload_task = project.upload_annotations(name=f"upload-job-{uuid.uuid4()}",
@@ -283,7 +281,8 @@ upload_task = project.upload_annotations(name=f"upload-job-{uuid.uuid4()}",
 
 # COMMAND ----------
 
-# Wait for upload to finish (Will take up to five minutes)
+# DBTITLE 1,Upload Status
+# Wait for upload to finish 
 upload_task.wait_until_done()
 # Review the upload status
 print(upload_task.errors)
@@ -291,7 +290,7 @@ print(upload_task.errors)
 # COMMAND ----------
 
 import labelspark
-annotations = labelspark.get_annotations(client, "ckoja1pgs1ias0713b0kuz2za", spark, sc)
+annotations = labelspark.get_annotations(client, "ckokdem1h6tla0736czew6mkh", spark, sc)
 display(annotations)
 
 # COMMAND ----------

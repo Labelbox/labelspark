@@ -104,7 +104,7 @@ ontology = OntologyBuilder(
 
 # print(ontology.asdict())
 
-project_demo2 = client.create_project(name="Ericsson Databricks Demo", description = "Labelspark!")
+project_demo2 = client.create_project(name="LabelSpark", description = "Your project description goes here")
 
 # Connect Project to dataset 
 project_demo2.datasets.connect(dataSet_new)

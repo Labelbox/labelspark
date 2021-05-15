@@ -31,7 +31,7 @@ for project in projects:
 def create_unstructured_dataset(): 
   print("Creating table of unstructured image data")
   # Pull information from Data Lake or other storage  
-  dataSet = client.get_dataset("ckmu2e5yi7ttd0709mi4qgnwd")
+  dataSet = client.get_dataset("ckolyi9ha7h800y7i5ppr3put")
   df_list = []
   for dataRow in dataSet.data_rows():
       df_ = {
@@ -73,10 +73,16 @@ if table_exists == False: create_unstructured_dataset()
 
 # COMMAND ----------
 
+# DBTITLE 1,Create Labelbox Client 
+from labelbox import Client
+client = Client(API_KEY)
+
+# COMMAND ----------
+
 # DBTITLE 1,Create Dataset with Labelbox for Annotation
 import labelspark
 unstructured_data = spark.table("unstructured_data")
-dataSet_new = labelspark.create_dataset_from_spark(client, unstructured_data, "My Sample Dataset")
+dataSet_new = labelspark.create_dataset(client, unstructured_data, "Demo Dataset")
 
 # COMMAND ----------
 
@@ -85,28 +91,28 @@ from labelbox.schema.ontology import OntologyBuilder, Tool, Classification, Opti
 # from labelbox import Client
 # import os
 
-ontology = OntologyBuilder(
-    tools=[
-        Tool(tool=Tool.Type.BBOX, name="Sample Box"),
-        Tool(tool=Tool.Type.SEGMENTATION,
-             name="Sample Segmentation",
-             classifications=[
-                 Classification(class_type=Classification.Type.TEXT,
-                                instructions="name")
-             ])
-    ],
-    classifications=[
-        Classification(class_type=Classification.Type.RADIO,
-                       instructions="Sample Radio Button",
-                       options=[Option(value="Option A"),
-                                Option(value="Option B")])
-    ])
+ontology = OntologyBuilder()
+tool_people = Tool(tool=Tool.Type.BBOX, name="People")
+tool_car = Tool(tool=Tool.Type.SEGMENTATION, name="Car")
+tool_umbrella = Tool(tool=Tool.Type.POLYGON, name="Umbrella")
+Weather_Classification = Classification(class_type=Classification.Type.RADIO, instructions="Weather", 
+                                       options=[Option(value="Clear"), 
+                                                Option(value="Overcast"),
+                                                Option(value="Rain"),
+                                                Option(value="Other")])
+Time_of_Day = Classification(class_type=Classification.Type.RADIO, instructions="Time of Day", 
+                                       options=[Option(value="Day"),
+                                                Option(value="Night"),
+                                                Option(value="Unknown")])
 
-# print(ontology.asdict())
+ontology.add_tool(tool_people)
+ontology.add_tool(tool_car)
+ontology.add_tool(tool_umbrella)
+ontology.add_classification(Weather_Classification)
+ontology.add_classification(Time_of_Day)
 
-project_demo2 = client.create_project(name="Ericsson Databricks Demo", description = "Labelspark!")
 
-# Connect Project to dataset 
+project_demo2 = client.create_project(name="LabelSpark Demo Example", description = "Example description here.")
 project_demo2.datasets.connect(dataSet_new)
 
 # Setup frontends 
@@ -117,7 +123,7 @@ for frontend in all_frontends:
         break
 
 # Attach Frontends
-project_demo2.labeling_frontend.connect(project_frontend) #how does this work?? 
+project_demo2.labeling_frontend.connect(project_frontend)  
 
 # Attach Project and Ontology
 project_demo2.setup(project_frontend, ontology.asdict())
@@ -132,19 +138,19 @@ print("Project Setup is complete.")
 # COMMAND ----------
 
 # DBTITLE 1,Query Labelbox for Raw Annotations (Bronze Table)
+
 client = Client(API_KEY) #refresh client 
-bronze_table = labelspark.get_annotations(client,"ckmvgzksjdp2b0789rqam8pnt", spark, sc) #ckmvgzksjdp2b0789rqam8pnt = old movie stills dataset
-bronze_table.registerTempTable("movie_stills_demo")
-display(bronze_table)
+bronze_table = labelspark.get_annotations(client,"ckolzeshr7zsy0736w0usbxdj", spark, sc) 
+bronze_table.registerTempTable("street_photo_demo")
+display(bronze_table.limit(1))
 
 # COMMAND ----------
 
 # DBTITLE 1,Bronze Table II (Labels Flattened ) 
 client = Client(API_KEY) #refresh client 
-bronze_table = spark.table("movie_stills_demo")
+bronze_table = spark.table("street_photo_demo")
 flattened_bronze_table = labelspark.flatten_bronze_table(bronze_table)
-display(flattened_bronze_table)
-
+display(flattened_bronze_table.limit(1))
 
 # COMMAND ----------
 
@@ -158,14 +164,18 @@ display(silver_table)
 
 # MAGIC %sql 
 # MAGIC 
-# MAGIC SELECT * FROM silver_table WHERE `Are there people in this still?` = "Yes"
+# MAGIC SELECT * FROM silver_table 
+# MAGIC WHERE `People.count` > 0 
+# MAGIC AND `Umbrella.count` > 0
+# MAGIC AND `Car.count` > 0
+# MAGIC AND Weather = "Rain"
 
 # COMMAND ----------
 
 # MAGIC %sql 
-# MAGIC SELECT * FROM silver_table WHERE 
-# MAGIC `Is there water is this still?` = "Yes" AND 
-# MAGIC `Type of Water` = "Ocean"
+# MAGIC 
+# MAGIC SELECT * FROM silver_table
+# MAGIC WHERE `External ID` = "Street View 29.jpeg"
 
 # COMMAND ----------
 
