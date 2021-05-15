@@ -1,0 +1,8 @@
+# Databricks notebook source
+api_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJja211MmU1dmxuaTJhMDc1N2J4NjZwdXg0Iiwib3JnYW5pemF0aW9uSWQiOiJja211MmU1djI1Y3hiMDcxMmk0NWg4ZWY0IiwiYXBpS2V5SWQiOiJja213djM1bHJoaG04MDc4OXV1eTVlemtxIiwiaWF0IjoxNjE3MTU5NjI2LCJleHAiOjIyNDgzMTE2MjZ9.sLwMGjF4706WJvw8goO4WvyHwqfSJGAZvefd_MW0kR8"
+
+dbutils.notebook.exit(api_key)
+
+# COMMAND ----------
+
+
