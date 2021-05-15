@@ -96,6 +96,18 @@ def bronze_to_silver(bronze_table):
 		except Exception as e:
 			print("No classifications")
 
+		# object counting
+		try:
+			row["Label.objects.title"]
+			for i in range(len(row["Label.objects.title"])):
+				object_name = row["Label.objects.title"][i] + ".count" #adding .count to reduce chances of name collision
+				if object_name not in my_dictionary:
+					my_dictionary[object_name] = 1 #initialize count at 1
+				else:
+					my_dictionary[object_name] = my_dictionary[object_name] + 1
+		except Exception as e:
+			print("No objects")
+
 		my_dictionary["DataRowID"] = row.DataRowID  # close it out
 		new_json.append(my_dictionary)
 
@@ -173,11 +185,10 @@ def add_json_answers_to_dictionary(title, answer2, my_dictionary):
 	if is_json(answer2):  # sometimes the answer is a JSON string; this happens on project ckoamhn1k5clr08584thrrp37
 		parsed_answer = json.loads(answer2)
 		try:
-			my_dictionary[title] = parsed_answer[
-				"value"]  # funky Labelbox syntax where the title is actually the "value" of the answer
+			answer2 = parsed_answer["value"]  # funky Labelbox syntax where the title is actually the "value" of the answer
 		except Exception as e:
 			pass
-	else:
-		my_dictionary[title] = answer2
+
+	my_dictionary[title] = answer2
 
 	return my_dictionary
