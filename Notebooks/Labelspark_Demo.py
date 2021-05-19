@@ -276,7 +276,7 @@ frames = []
 project = client.get_project("ckmvh3yb8a8dv0722mjsqcnzv")
 with urllib.request.urlopen(project.export_labels()) as url:
   export_file = json.loads(url.read().decode())
-
+  print(json.dumps(export_file, indent =3 ))
 # Parse through all Labels to find Labels with contents and skipped
 for x in export_file:
     # Find Label frame URL's and External ID's

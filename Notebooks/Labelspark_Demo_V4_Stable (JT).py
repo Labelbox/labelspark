@@ -132,7 +132,7 @@ print("Project Setup is complete.")
 # COMMAND ----------
 
 # DBTITLE 1,Query Labelbox for Raw Annotations (Bronze Table)
-client = Client(API_KEY) #refresh client 
+client = Client(API_KENY) #refresh client 
 bronze_table = labelspark.get_annotations(client,"ckmvgzksjdp2b0789rqam8pnt", spark, sc) #ckmvgzksjdp2b0789rqam8pnt = old movie stills dataset
 bronze_table.registerTempTable("movie_stills_demo")
 display(bronze_table)

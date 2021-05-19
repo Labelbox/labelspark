@@ -32,13 +32,12 @@ def create_unstructured_dataset():
   print("Creating table of unstructured image data")
   # Pull information from Data Lake or other storage  
   dataSet = client.get_dataset("ckolyi9ha7h800y7i5ppr3put")
-  df_list = []
-  for dataRow in dataSet.data_rows():
-      df_ = {
+
+  #creates a list of datarow dictionaries 
+  df_list = [ {
           "external_id": dataRow.external_id,
           "row_data": dataRow.row_data
-      }
-      df_list.append(df_)
+      } for dataRow in dataSet.data_rows()]
 
   # Create DataFrame 
   images = pd.DataFrame(df_list)
@@ -58,7 +57,7 @@ for table in tblList:
       print("Unstructured data table exists")
       table_exists = True
 
-if table_exists == False: create_unstructured_dataset()
+if not table_exists: create_unstructured_dataset()
 
 # COMMAND ----------
 
@@ -123,10 +122,10 @@ for frontend in all_frontends:
         break
 
 # Attach Frontends
-project_demo2.labeling_frontend.connect(project_frontend)  
-
+project_demo2.labeling_frontend.connect(project_frontend) 
 # Attach Project and Ontology
-project_demo2.setup(project_frontend, ontology.asdict())
+project_demo2.setup(project_frontend, ontology.asdict()) 
+
 
 print("Project Setup is complete.")
 
@@ -142,7 +141,7 @@ print("Project Setup is complete.")
 client = Client(API_KEY) #refresh client 
 bronze_table = labelspark.get_annotations(client,"ckolzeshr7zsy0736w0usbxdj", spark, sc) 
 bronze_table.registerTempTable("street_photo_demo")
-display(bronze_table.limit(1))
+display(bronze_table.limit(2))
 
 # COMMAND ----------
 
@@ -175,11 +174,14 @@ display(silver_table)
 # MAGIC %sql 
 # MAGIC 
 # MAGIC SELECT * FROM silver_table
-# MAGIC WHERE `External ID` = "Street View 29.jpeg"
+# MAGIC WHERE `People.count` > 10
 
 # COMMAND ----------
 
 # DBTITLE 1,Demo Cleanup Code: Deleting Dataset and Projects
-client = Client(API_KEY)
-dataSet_new.delete()
-project_demo2.delete()
+def cleanup(): 
+  client = Client(API_KEY)
+  dataSet_new.delete()
+  project_demo2.delete()
+
+cleanup() 
