@@ -139,3 +139,4 @@ cython_debug/
 
 #Ignore API Key Notebook in Databricks
 /Notebooks/api_key.py
+.DS_Store
