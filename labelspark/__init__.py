@@ -1,19 +1,13 @@
-import os
 import json
-import re
 import urllib
-import requests
 import databricks.koalas as pd
-import pandas as pd2
-import os
-from PIL import Image
+import ast
 from labelbox import Client
 
 #spark specific stuff
 from pyspark.sql.types import StructType
 from pyspark.sql.functions import col
 from pyspark.sql import Row
-import ast
 
 
 # upload spark dataframe to Labelbox
@@ -103,13 +97,19 @@ def bronze_to_silver(bronze_table):
         # object counting
         try:
             row["Label.objects.title"]
-            for i in range(len(row["Label.objects.title"])):
-                object_name = row["Label.objects.title"][
-                    i] + ".count"  #adding .count to reduce chances of name collision
+            for object in row.get("Label.objects.title", []):
+                object_name = '{}.count'.format(object)
                 if object_name not in my_dictionary:
-                    my_dictionary[object_name] = 1  #initialize count at 1
+                    my_dictionary[object_name] = 1 #initialize with 1
                 else:
-                    my_dictionary[object_name] = my_dictionary[object_name] + 1
+                    my_dictionary[object_name] += 1 #add 1 to counter
+            # for i in range(len(row["Label.objects.title"])):
+            #     object_name = row["Label.objects.title"][
+            #         i] + ".count"  #adding .count to reduce chances of name collision
+            #     if object_name not in my_dictionary:
+            #         my_dictionary[object_name] = 1  #initialize count at 1
+            #     else:
+            #         my_dictionary[object_name] = my_dictionary[object_name] + 1
         except Exception as e:
             print("No objects")
 
