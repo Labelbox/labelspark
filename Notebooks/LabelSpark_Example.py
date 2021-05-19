@@ -78,10 +78,36 @@ client = Client(API_KEY)
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC 
+# MAGIC LabelSpark expects a spark table with two columns; the first column "external_id" and second column "row_data"
+# MAGIC 
+# MAGIC external_id is a filename, like "birds.jpg" or "my_video.mp4"
+# MAGIC 
+# MAGIC row_data is the URL path to the file. Labelbox renders assets locally on your users' machines when they label, so your labeler will need permission to access that asset. 
+# MAGIC 
+# MAGIC Example: 
+# MAGIC 
+# MAGIC | external_id | row_data                             |
+# MAGIC |-------------|--------------------------------------|
+# MAGIC | image1.jpg  | https://url_to_your_asset/image1.jpg |
+# MAGIC | image2.jpg  | https://url_to_your_asset/image2.jpg |
+# MAGIC | image3.jpg  | https://url_to_your_asset/image3.jpg |
+
+# COMMAND ----------
+
 # DBTITLE 1,Create Dataset with Labelbox for Annotation
 import labelspark
 unstructured_data = spark.table("unstructured_data")
 dataSet_new = labelspark.create_dataset(client, unstructured_data, "Demo Dataset")
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC 
+# MAGIC You can use the labelbox SDK to build your ontology. An example is provided below. 
+# MAGIC 
+# MAGIC Please refer to documentation at https://docs.labelbox.com/python-sdk/en/index-en
 
 # COMMAND ----------
 
@@ -136,8 +162,19 @@ print("Project Setup is complete.")
 
 # COMMAND ----------
 
-# DBTITLE 1,Query Labelbox for Raw Annotations (Bronze Table)
+# MAGIC %md 
+# MAGIC 
+# MAGIC Be sure to provide your Labelbox Project ID (a long string like "ckolzeshr7zsy0736w0usbxdy") to labelspark get_annotations method to pull in your labeled dataset. 
+# MAGIC 
+# MAGIC <br>bronze_table = labelspark.get_annotations(client,"ckolzeshr7zsy0736w0usbxdy", spark, sc) 
+# MAGIC 
+# MAGIC *These other methods transform the bronze table and do not require a project ID.* 
+# MAGIC <br>flattened_bronze_table = labelspark.flatten_bronze_table(bronze_table)
+# MAGIC <br>silver_table = labelspark.bronze_to_silver(bronze_table)
 
+# COMMAND ----------
+
+# DBTITLE 1,Query Labelbox for Raw Annotations (Bronze Table)
 client = Client(API_KEY) #refresh client 
 bronze_table = labelspark.get_annotations(client,"ckolzeshr7zsy0736w0usbxdj", spark, sc) 
 bronze_table.registerTempTable("street_photo_demo")
