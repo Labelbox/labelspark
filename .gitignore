@@ -136,3 +136,6 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+#Ignore API Key Notebook in Databricks
+/Notebooks/api_key.py
