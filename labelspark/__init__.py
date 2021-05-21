@@ -39,11 +39,13 @@ def get_annotations(client, project_id, spark, sc):
     return bronze_table
 
 
-# processes the bronze table into a flattened one (intermediary to Silver table)
+# processes the bronze table into a flattened one
 def flatten_bronze_table(bronze_table):
-    schema_fields_array = list(
-        spark_schema_to_string(bronze_table.schema.jsonValue()))
-    # Note that you cannot easily access some nested fields if you must navigate arrays of arrays to get there, so I do try/except to avoid parsing into those fields. I believe this can be enriched with some JSON parsing, but maybe another day.
+    schema_fields_array = spark_schema_to_string(
+        bronze_table.schema.jsonValue())  #generator of column names
+    # Note that you cannot easily access some nested fields if you must navigate arrays of arrays to get there,
+    # so I do try/except to avoid parsing into those fields.
+    # I believe this can be enriched with some JSON parsing, but maybe another day.
     valid_schemas = []
     for schema_field in schema_fields_array:
         success = None
@@ -81,43 +83,32 @@ def bronze_to_silver(bronze_table):
         my_dictionary = {}
 
         # classifications
-        try:
-            row["Label.classifications.title"]
-            for i in range(len(row["Label.classifications.title"])):
-                title = row["Label.classifications.title"][i]
-                try:  # this is for deeper nesting; sometimes this fails if there isn't more nesting, hence try except
-                    answer = row["Label.classifications.answer"][i]
-                except Exception as e:
-                    answer = row["Label.classifications.answer.title"][i]
+        try:  #this won't work if there are no classifications
+            for index, title in enumerate(row["Label.classifications.title"]):
+                if "Label.classifications.answer" in row:
+                    answer = row["Label.classifications.answer"][index]
+                else:
+                    answer = row["Label.classifications.answer.title"][index]
                 my_dictionary = add_json_answers_to_dictionary(
                     title, answer, my_dictionary)
         except Exception as e:
-            print("No classifications")
+            print("No classifications found.")
 
         # object counting
-        try:
-            row["Label.objects.title"]
+        try:  #this field won't work if the Label does not have objects in it
             for object in row.get("Label.objects.title", []):
                 object_name = '{}.count'.format(object)
                 if object_name not in my_dictionary:
-                    my_dictionary[object_name] = 1 #initialize with 1
+                    my_dictionary[object_name] = 1  #initialize with 1
                 else:
-                    my_dictionary[object_name] += 1 #add 1 to counter
-            # for i in range(len(row["Label.objects.title"])):
-            #     object_name = row["Label.objects.title"][
-            #         i] + ".count"  #adding .count to reduce chances of name collision
-            #     if object_name not in my_dictionary:
-            #         my_dictionary[object_name] = 1  #initialize count at 1
-            #     else:
-            #         my_dictionary[object_name] = my_dictionary[object_name] + 1
+                    my_dictionary[object_name] += 1  #add 1 to counter
         except Exception as e:
-            print("No objects")
+            print("No objects found.")
 
         my_dictionary["DataRowID"] = row.DataRowID  # close it out
         new_json.append(my_dictionary)
 
-    parsed_classifications = pd.DataFrame(
-        new_json).to_spark()  # this is all leveraging Spark + Koalas!
+    parsed_classifications = pd.DataFrame(new_json).to_spark()
 
     bronze_table = bronze_table.to_spark()
     joined_df = parsed_classifications.join(bronze_table, ["DataRowID"],
@@ -158,7 +149,7 @@ def dataframe_schema_enrichment(raw_dataframe, type_dictionary=None):
                 col(column_name).cast(type_dictionary[column_name]))
         except Exception as e:
             print(e.__class__, "occurred for", column_name, ":",
-                  type_dictionary[column_name], ". Moving to next item.")
+                  type_dictionary[column_name], ". Please check that column.")
 
     return copy_dataframe
 
@@ -187,9 +178,9 @@ def is_json(myjson):
     return True
 
 
-def add_json_answers_to_dictionary(title, answer2, my_dictionary):
+def add_json_answers_to_dictionary(title, answer, my_dictionary):
     try:  # see if I can read the answer string as a literal --it might be an array of JSONs
-        convert_from_literal_string = ast.literal_eval(answer2)
+        convert_from_literal_string = ast.literal_eval(answer)
         if isinstance(convert_from_literal_string, list):
             for item in convert_from_literal_string:  # should handle multiple items
                 my_dictionary = add_json_answers_to_dictionary(
@@ -199,15 +190,15 @@ def add_json_answers_to_dictionary(title, answer2, my_dictionary):
         pass
 
     if is_json(
-            answer2
-    ):  # sometimes the answer is a JSON string; this happens on project ckoamhn1k5clr08584thrrp37
-        parsed_answer = json.loads(answer2)
+            answer
+    ):  # sometimes the answer is a JSON string; this happens when you have nested classifications
+        parsed_answer = json.loads(answer)
         try:
-            answer2 = parsed_answer[
-                "value"]  # funky Labelbox syntax where the title is actually the "value" of the answer
+            answer = parsed_answer[
+                "value"]  # Labelbox syntax where the title is actually the "value" of the answer
         except Exception as e:
             pass
 
-    my_dictionary[title] = answer2
+    my_dictionary[title] = answer
 
     return my_dictionary
