@@ -61,5 +61,5 @@ If you set your user.name and user.email git configs, you can sign your commit a
 
 ## Code of Conduct
 
-This project aligns with [![Contributor Covenant](https://www.contributor-covenant.org/version/2/0/code_of_conduct.html)
+This project aligns with [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.0-4baaaa.svg)](https://www.contributor-covenant.org/version/2/0/code_of_conduct.html)
 
