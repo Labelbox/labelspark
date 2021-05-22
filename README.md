@@ -63,6 +63,7 @@ flattened_bronze_DF = labelspark.flatten_bronze_table(bronze_DF)
 queryable_silver_DF = labelspark.bronze_to_silver(bronze_DF)
 ```
 
+While using LabelSpark, you will likely also use the Labelbox SDK (e.g. for programmatic ontology creation). These resources will help familiarize you with the Labelbox Python SDK: 
 * [Visit our docs](https://labelbox.com/docs/python-api) to learn how the SDK works
 * Checkout our [notebook examples](examples/) to follow along with interactive tutorials
 * view our [API reference](https://labelbox.com/docs/python-api/api-reference).
