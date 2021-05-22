@@ -24,7 +24,7 @@ Labelbox is the enterprise-grade training data solution with fast AI enabled lab
 Prerequisite: Install the [Labelbox SDK](https://pypi.org/project/labelbox/) on your cluster. Alternatively, you can use %pip to install it as a notebook-scoped library from your Databricks notebook: 
 
 ```
-pip install labelbox
+%pip install labelbox
 ```
 
 Next, install LabelSpark to your cluster by uploading a Python Wheel to the cluster, or via notebook-scoped library installation in the notebook. Currently LabelSpark is available via this Git repo: 
