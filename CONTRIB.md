@@ -1,4 +1,4 @@
-# LabelSpark Python SDK Contribution Guide
+# LabelSpark Python Library Contribution Guide
 
 We use [GitHub Issues](https://github.com/Labelbox/LabelSpark/issues) to track community reported issues and [GitHub Pull Requests](https://github.com/Labelbox/LabelSpark/pulls) for accepting changes.
 
