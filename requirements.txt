@@ -1,0 +1,4 @@
+koalas==1.6.0
+labelbox==2.5.4
+urllib3==1.26.4
+requests==2.25.1
