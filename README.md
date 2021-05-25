@@ -4,6 +4,8 @@ Access the LabelSpark library (a connector between Databricks and Labelbox) to c
 
 Labelbox is the enterprise-grade training data solution with fast AI enabled labeling tools, labeling automation, human workforce, data management, a powerful API for integration & SDK for extensibility. Visit [Labelbox](http://labelbox.com/) for more information.
 
+LabelSpark is currently in beta. It may contain errors or inaccuracies and may not function as well as commercially released software. Please report any issues/bugs via [Github Issues](https://github.com/Labelbox/LabelSpark/issues).
+
 
 ## Table of Contents
 
