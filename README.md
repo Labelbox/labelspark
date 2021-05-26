@@ -32,7 +32,7 @@ Prerequisite: Install the [Labelbox SDK](https://pypi.org/project/labelbox/) on 
 Next, install LabelSpark to your cluster by uploading a Python Wheel to the cluster, or via notebook-scoped library installation in the notebook. Currently LabelSpark is available via this Git repo: 
 
 ```
-%pip install git+https://github.com/Labelbox/LabelSpark
+%pip install git+https://github.com/Labelbox/labelspark
 ```
 We will make LabelSpark available on PyPi after the beta period is over. 
 
