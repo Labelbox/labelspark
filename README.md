@@ -24,7 +24,7 @@ LabelSpark is currently in beta. It may contain errors or inaccuracies and may n
 ## Installation
 
 
-Install LabelSpark to your cluster by uploading a Python Wheel to the cluster, or via notebook-scoped library installation in the notebook. Currently LabelSpark is also available via pypi 
+Install LabelSpark to your cluster by uploading a Python Wheel to the cluster, or via notebook-scoped library installation in the notebook. LabelSpark is also available via pypi 
 
 ```
 pip install labelspark
