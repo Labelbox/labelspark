@@ -23,18 +23,12 @@ LabelSpark is currently in beta. It may contain errors or inaccuracies and may n
 
 ## Installation
 
-Prerequisite: Install the [Labelbox SDK](https://pypi.org/project/labelbox/) on your cluster. Alternatively, you can use %pip to install it as a notebook-scoped library from your Databricks notebook: 
+
+Install LabelSpark to your cluster by uploading a Python Wheel to the cluster, or via notebook-scoped library installation in the notebook. LabelSpark is also available via pypi 
 
 ```
-%pip install labelbox
+pip install labelspark
 ```
-
-Next, install LabelSpark to your cluster by uploading a Python Wheel to the cluster, or via notebook-scoped library installation in the notebook. Currently LabelSpark is available via this Git repo: 
-
-```
-%pip install git+https://github.com/Labelbox/labelspark
-```
-We will make LabelSpark available on PyPi after the beta period is over. 
 
 ## Documentation
 
@@ -67,7 +61,7 @@ queryable_silver_DF = labelspark.bronze_to_silver(bronze_DF)
 
 While using LabelSpark, you will likely also use the Labelbox SDK (e.g. for programmatic ontology creation). These resources will help familiarize you with the Labelbox Python SDK: 
 * [Visit our docs](https://labelbox.com/docs/python-api) to learn how the SDK works
-* Checkout our [notebook examples](examples/) to follow along with interactive tutorials
+* Checkout our [notebook examples](https://github.com/Labelbox/labelspark/tree/master/notebooks) to follow along with interactive tutorials
 * view our [API reference](https://labelbox.com/docs/python-api/api-reference).
 
 ## Authentication
