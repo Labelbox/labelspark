@@ -246,11 +246,12 @@ display(bronze_video_basic)
 import functools 
 
 def unionAll(dfs):
-    return functools.reduce(lambda df1,df2: df1.union(df2.select(df1.columns)), dfs) 
+    return functools.reduce(lambda df1,df2: df1.unionByName(df2.select(df1.columns)), dfs) 
 
 
 
 # COMMAND ----------
+
 
 def build_larger_dataframe(array_of_string_responses): 
   array_of_dfs = [] 
@@ -264,6 +265,16 @@ def build_larger_dataframe(array_of_string_responses):
 
 # COMMAND ----------
 
+from functools import reduce
+from pyspark.sql import DataFrame
+
+dfs = [df1,df2,df3]
+df = reduce(DataFrame.unionAll, dfs)
+
+# COMMAND ----------
+
+from functools import reduce
+from pyspark.sql import DataFrame
 import requests 
 koalas_bronze = bronze_video_basic.to_koalas()
 
@@ -272,16 +283,15 @@ master_array_of_json_arrays = []
 for index, row in koalas_bronze.iterrows():
   print(row.Label.frames)
   response = requests.get(row.Label.frames, headers=headers, stream=False)
-  array_of_string_responses = [line.decode('utf-8') for line in response.iter_lines()]
+  array_of_string_responses = ["\"Label\":" + line.decode('utf-8') for line in response.iter_lines()]
   #array_of_jsons = [json.loads(line.decode('utf-8')) for line in response.iter_lines()]
   master_array_of_json_arrays.append(array_of_string_responses)
   
   #display(jsonToDataFrame(array_of_string_responses[0], spark, sc))
 
   #df = pd.DataFrame.from_dict(array_of_jsons[0], orient='index')
-
-for frameset in master_array_of_json_arrays: 
-  display(build_larger_dataframe(frameset[0:5]))
+df = build_larger_dataframe(master_array_of_json_arrays[0][0:50])
+display(df)
   
   
 #   df = df.transpose()
