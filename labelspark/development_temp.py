@@ -73,11 +73,13 @@ def flatten_bronze_table(bronze_table):
 
 
 # processes bronze table into silver table
-def bronze_to_silver(bronze_table):
+def bronze_to_silver(bronze_table, video=False):
     # valid_schemas = list(spark_schema_to_string(bronze_table.schema.jsonValue()))
     bronze_table = flatten_bronze_table(bronze_table)
 
     bronze_table = bronze_table.withColumnRenamed("DataRow ID", "DataRowID")
+    if video: 
+      bronze_table = bronze_table.withColumnRenamed("Label.frameNumber", "frameNumber")
     bronze_table = bronze_table.to_koalas()
 
     new_json = []
@@ -108,13 +110,21 @@ def bronze_to_silver(bronze_table):
             print("No objects found.")
 
         my_dictionary["DataRowID"] = row.DataRowID  # close it out
+        if video: 
+          my_dictionary["frameNumber"] = row.frameNumber #need to store the unique framenumber identifier for video 
         new_json.append(my_dictionary)
 
     parsed_classifications = pd.DataFrame(new_json).to_spark()
-
+    print(parsed_classifications)
+    
     bronze_table = bronze_table.to_spark()
-    joined_df = parsed_classifications.join(bronze_table, ["DataRowID"],
-                                            "inner")
+    if not video:
+      joined_df = parsed_classifications.join(bronze_table, ["DataRowID"], "inner")
+    else: 
+      joined_df = parsed_classifications.join(bronze_table, ["DataRowID", "frameNumber"], "inner") 
+#                                               (parsed_classifications.DataRowID==bronze_table.DataRowID) & 
+#                                               (parsed_classifications.frameNumber == bronze_table.frameNumber))
+    
     joined_df = joined_df.withColumnRenamed("DataRowID", "DataRow ID")
 
     return joined_df  # silver_table
@@ -243,24 +253,24 @@ display(bronze_video_basic)
 
 # COMMAND ----------
 
-import functools 
+# import functools 
 
-def unionAll(dfs):
-    return functools.reduce(lambda df1,df2: df1.unionByName(df2.select(df1.columns)), dfs) 
+# def unionAll(dfs):
+#     return functools.reduce(lambda df1,df2: df1.unionByName(df2.select(df1.columns)), dfs) 
 
 
 
 # COMMAND ----------
 
 
-def build_larger_dataframe(array_of_string_responses): 
-  array_of_dfs = [] 
-  for frame in array_of_string_responses: 
-    df = jsonToDataFrame(frame, spark, sc)
-    array_of_dfs.append(df)
+# def build_larger_dataframe(array_of_string_responses): 
+#   array_of_dfs = [] 
+#   for frame in array_of_string_responses: 
+#     df = jsonToDataFrame(frame, spark, sc)
+#     array_of_dfs.append(df)
   
-  unioned_df = unionAll(array_of_dfs)
-  return unioned_df 
+#   unioned_df = unionAll(array_of_dfs)
+#   return unioned_df 
   
 
 # COMMAND ----------
@@ -276,18 +286,20 @@ def build_larger_dataframe(array_of_string_responses):
 from functools import reduce
 from pyspark.sql import DataFrame
 import requests 
-koalas_bronze = bronze_video_basic.to_koalas()
+
+bronze_video_labels = bronze_video_basic.withColumnRenamed("DataRow ID", "DataRowID")
+koalas_bronze = bronze_video_labels.to_koalas()
 
 headers = {'Authorization': f"Bearer {API_KEY}"}
 master_array_of_json_arrays = [] 
-array_of_dataframes = [] 
+master_array_of_toplevel_rows = [] 
 for index, row in koalas_bronze.iterrows():
   #print(row.Label.frames)
   response = requests.get(row.Label.frames, headers=headers, stream=False)
-  array_of_string_responses = ["{\"Label\":" + line.decode('utf-8') + "}" for line in response.iter_lines()]
+  array_of_string_responses = ["{\"DataRow ID\":" + "\"" + row.DataRowID + "\"," 
+                               + "\"Label\":" + line.decode('utf-8') + "}" 
+                               for line in response.iter_lines()]
   massive_string_of_responses = "[" + ",".join(array_of_string_responses) + "]" #I hope this works 
-  #print(array_of_string_responses)
-  #array_of_jsons = [json.loads(line.decode('utf-8')) for line in response.iter_lines()]
   master_array_of_json_arrays.append(massive_string_of_responses)
   #display(jsonToDataFrame(array_of_string_responses, spark, sc))
   
@@ -295,7 +307,8 @@ for index, row in koalas_bronze.iterrows():
 
   #df = pd.DataFrame.from_dict(array_of_jsons[0], orient='index')
   #print(massive_string_of_responses)
-
+# pairing_row_and_child_frames = zip(master_array_of_toplevel_rows, master_array_of_json_arrays)
+# list_of_paired_row_and_child_frames = list(pairing_row_and_child_frames)
   
 #df = jsonToDataFrame()
 # df = build_larger_dataframe(ma)
@@ -304,9 +317,16 @@ for index, row in koalas_bronze.iterrows():
 #   display(flatten_bronze_table(df))
 
 for frameset in master_array_of_json_arrays: 
-  df = jsonToDataFrame(frameset, spark, sc)
-  silver = flatten_bronze_table(df)
-  display(silver.limit(100))
+  df = jsonToDataFrame(frameset, spark, sc) #this is actually a bronze table of frames with label JSON
+  flattened = flatten_bronze_table(df)
+  silver = bronze_to_silver(df, video=True)
+  display(silver.orderBy('frameNumber'), ascending = False)
+  #display(silver.orderBy("frameNumber", ascending = False))
+
+# for frameset in master_array_of_json_arrays: 
+#   df = jsonToDataFrame(frameset, spark, sc) #this is actually a bronze table of frames with label JSON
+#   silver = flatten_bronze_table(df) #this flattens it out 
+#   display(silver.limit(100))
 
   #TO-DO
   #propagate DataRowID to the label table 
