@@ -35,7 +35,6 @@ def get_annotations(client, project_id, spark, sc):
     project = client.get_project(project_id)
     with urllib.request.urlopen(project.export_labels()) as url:
         api_response_string = url.read().decode()  # this is a string of JSONs
-        print(api_response_string)
     bronze_table = jsonToDataFrame(api_response_string, spark, sc)
     bronze_table = dataframe_schema_enrichment(bronze_table)
     return bronze_table
@@ -73,11 +72,13 @@ def flatten_bronze_table(bronze_table):
 
 
 # processes bronze table into silver table
-def bronze_to_silver(bronze_table, video=False):
-    # valid_schemas = list(spark_schema_to_string(bronze_table.schema.jsonValue()))
+def bronze_to_silver(bronze_table):
     bronze_table = flatten_bronze_table(bronze_table)
-
     bronze_table = bronze_table.withColumnRenamed("DataRow ID", "DataRowID")
+    
+    #video labels need special handling 
+    video = False 
+    if "Label.frameNumber" in bronze_table.columns: video = True
     if video: 
       bronze_table = bronze_table.withColumnRenamed("Label.frameNumber", "frameNumber")
     bronze_table = bronze_table.to_koalas()
@@ -118,16 +119,14 @@ def bronze_to_silver(bronze_table, video=False):
     print(parsed_classifications)
     
     bronze_table = bronze_table.to_spark()
-    if not video:
-      joined_df = parsed_classifications.join(bronze_table, ["DataRowID"], "inner")
-    else: 
+    if video:
+      #need to inner-join with frameNumber to avoid creating N-squared datarows, since each frame has same DataRowID
       joined_df = parsed_classifications.join(bronze_table, ["DataRowID", "frameNumber"], "inner") 
-#                                               (parsed_classifications.DataRowID==bronze_table.DataRowID) & 
-#                                               (parsed_classifications.frameNumber == bronze_table.frameNumber))
+    else: 
+      joined_df = parsed_classifications.join(bronze_table, ["DataRowID"], "inner")
     
     joined_df = joined_df.withColumnRenamed("DataRowID", "DataRow ID")
-
-    return joined_df  # silver_table
+    return joined_df  
 
 
 def jsonToDataFrame(json, spark, sc, schema=None):
@@ -236,19 +235,19 @@ for project in projects:
 
 # COMMAND ----------
 
-# returns raw bronze annotations
-def get_annotations_video(client, project_id, spark, sc):
-    project = client.get_project(project_id)
-    with urllib.request.urlopen(project.export_labels()) as url:
-        api_response_string = url.read().decode()  # this is a string of JSONs
-        print(api_response_string)
-    bronze_table = jsonToDataFrame(api_response_string, spark, sc)
-    bronze_table = dataframe_schema_enrichment(bronze_table)
-    return bronze_table
+# # returns raw bronze annotations
+# def get_annotations_video(client, project_id, spark, sc):
+#     project = client.get_project(project_id)
+#     with urllib.request.urlopen(project.export_labels()) as url:
+#         api_response_string = url.read().decode()  # this is a string of JSONs
+#         print(api_response_string)
+#     bronze_table = jsonToDataFrame(api_response_string, spark, sc)
+#     bronze_table = dataframe_schema_enrichment(bronze_table)
+#     return bronze_table
 
 # COMMAND ----------
 
-bronze_video_basic = get_annotations_video(client, "ckmvh3yb8a8dv0722mjsqcnzv", spark, sc)
+bronze_video_basic = get_annotations(client, "ckmvh3yb8a8dv0722mjsqcnzv", spark, sc)
 display(bronze_video_basic)
 
 # COMMAND ----------
@@ -283,123 +282,44 @@ display(bronze_video_basic)
 
 # COMMAND ----------
 
-from functools import reduce
-from pyspark.sql import DataFrame
 import requests 
 
-bronze_video_labels = bronze_video_basic.withColumnRenamed("DataRow ID", "DataRowID")
-koalas_bronze = bronze_video_labels.to_koalas()
+def get_videoframe_annotations(bronze_video_labels): 
+  #This method takes in the bronze table from get_annotations and produces 
+  #an array of bronze dataframes containing frame labels for each project
+  bronze_video_labels = bronze_video_basic.withColumnRenamed("DataRow ID", "DataRowID")
+  koalas_bronze = bronze_video_labels.to_koalas()
 
-headers = {'Authorization': f"Bearer {API_KEY}"}
-master_array_of_json_arrays = [] 
-master_array_of_toplevel_rows = [] 
-for index, row in koalas_bronze.iterrows():
-  #print(row.Label.frames)
-  response = requests.get(row.Label.frames, headers=headers, stream=False)
-  array_of_string_responses = ["{\"DataRow ID\":" + "\"" + row.DataRowID + "\"," 
-                               + "\"Label\":" + line.decode('utf-8') + "}" 
-                               for line in response.iter_lines()]
-  massive_string_of_responses = "[" + ",".join(array_of_string_responses) + "]" #I hope this works 
-  master_array_of_json_arrays.append(massive_string_of_responses)
-  #display(jsonToDataFrame(array_of_string_responses, spark, sc))
+  #We manually build a string of frame responses to leverage our existing jsonToDataFrame code, which takes in JSON
+  headers = {'Authorization': f"Bearer {API_KEY}"}
+  master_array_of_json_arrays = [] 
+  master_array_of_toplevel_rows = [] 
+  for index, row in koalas_bronze.iterrows():
+    response = requests.get(row.Label.frames, headers=headers, stream=False) #reach out to Labelbox and get individual frame labels back
+    array_of_string_responses = ["{\"DataRow ID\":" + "\"" + row.DataRowID + "\"," 
+                                 + "\"Label\":" + line.decode('utf-8') + "}" 
+                                 for line in response.iter_lines()]
+    massive_string_of_responses = "[" + ",".join(array_of_string_responses) + "]" 
+    master_array_of_json_arrays.append(massive_string_of_responses)
   
-  #display(jsonToDataFrame(array_of_string_responses[0], spark, sc))
-
-  #df = pd.DataFrame.from_dict(array_of_jsons[0], orient='index')
-  #print(massive_string_of_responses)
-# pairing_row_and_child_frames = zip(master_array_of_toplevel_rows, master_array_of_json_arrays)
-# list_of_paired_row_and_child_frames = list(pairing_row_and_child_frames)
+  array_of_bronze_dataframes = [] 
+  for frameset in master_array_of_json_arrays: 
+    array_of_bronze_dataframes.append(jsonToDataFrame(frameset, spark, sc))
   
-#df = jsonToDataFrame()
-# df = build_larger_dataframe(ma)
-# for frameset in master_array_of_json_arrays:
-#   df = build_larger_dataframe(frameset[0:100]) #for testing I'm only doing first 100 frames 
-#   display(flatten_bronze_table(df))
+  return array_of_bronze_dataframes
 
-for frameset in master_array_of_json_arrays: 
-  df = jsonToDataFrame(frameset, spark, sc) #this is actually a bronze table of frames with label JSON
-  flattened = flatten_bronze_table(df)
-  silver = bronze_to_silver(df, video=True)
-  display(silver.orderBy('frameNumber'), ascending = False)
-  #display(silver.orderBy("frameNumber", ascending = False))
-
-# for frameset in master_array_of_json_arrays: 
-#   df = jsonToDataFrame(frameset, spark, sc) #this is actually a bronze table of frames with label JSON
-#   silver = flatten_bronze_table(df) #this flattens it out 
-#   display(silver.limit(100))
-
-  #TO-DO
-  #propagate DataRowID to the label table 
-  #then do an inner join to propagate all the stuff throughout the entire table
-  #voila you have silver table! 
-  
-#   df = df.transpose()
-#   display(df)
-#   print(pd.DataFrame(array_of_jsons[0]))
+video_dataframes = get_videoframe_annotations(bronze_video_basic)
+silver_video_dataframes = [] 
+for frameset in video_dataframes: 
+  silver_video_dataframes.append(bronze_to_silver(frameset))
 
 
 # COMMAND ----------
 
-display(bronze_to_silver(bronze_video_basic))
+display(silver_video_dataframes[0]
+        .join(bronze_video_basic, ["DataRow ID"], "inner")
+        .orderBy('frameNumber'), ascending = False)
 
 # COMMAND ----------
 
-import json
-import os
-import requests
-import json
-import re
-
-"""
-The goal of this script is to help Labelbox users parse through the Video Export. The method is generating a JSON export
-from project and using an API key. Insert the exported JSON file, and add the API key into the varibale 
-API_KEY.  
-
-Once this is completed the script will run. The script will save each label and its contents to a JSON file. The name 
-of the JSON file will be the External ID of the file uploaded. This will save all Labels made to the documents folder. 
-
-Email jvega@labelbox.com if you have any questions. 
-
-"""
-
-API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjanZnejMzOHEyanV1MDg2NjF6NGFwNWhnIiwib3JnYW5pemF0aW9uSWQiOiJjanZnejMzODAyanh5MGEwODM2cHNrMXg4IiwiYXBpS2V5SWQiOiJja2wwNHVmcWVmZ3I4MDc2MHVrb3FhOGw1IiwiaWF0IjoxNjEzMDAzODQ5LCJleHAiOjIyNDQxNTU4NDl9.4l838T53l4QRvf0U1q26u2K7wb8yqDENlh9DPcKJ6nk'
-
-# Lists for parsing information
-labels = []
-label_frames = []
-external_id = []
-
-# Insert JSON export into this line
-with open("/Users/jvega/Downloads/export-2021-02-11T00_35_33.480Z.json") as fp:
-    labels = json.load(fp)
-
-# Parse through all Labels to find Labels with contents and skipped
-for x in labels:
-    # Find Label frame URL's and External ID's
-    if 'frames' in x['Label']:
-        label_frames.append(x["Label"]["frames"])
-        external_id.append(x['External ID'])
-    else:
-        # Print all skipped Labels
-        print('Skipped Labels ID:' + x['ID'] + ", External ID: " + x['External ID'])
-
-# Parse through label frames and external Ids in asynchronous fashion
-for frame,file_path in zip(label_frames, external_id):
-    # Attach API key to headers
-    headers = {'Authorization': f"Bearer {API_KEY}"}
-    # Pull response out of URL
-    response = requests.get(frame, headers=headers, stream=False)
-    # Open file with External ID name
-    file_for_label = open(file_path + '.json', 'w')
-    # Get contents of frames URl and save to file
-    for frame_line in response.iter_lines():
-        # if there is contents
-        if frame_line:
-            # Save frame to file set as external ID
-            frame = json.loads(frame_line.decode('utf-8'))
-            # Remove Schema and Feature ID's
-            frame = re.sub(r'(\'featureId\'|\'schemaId\'): \'\w*\',', '',str(frame))
-            # For NDJSON file
-            file_for_label.write("%s\n" % frame)
-            print(file_path)
-
+display(silver_video_dataframes[1].orderBy('frameNumber'), ascending = False)
