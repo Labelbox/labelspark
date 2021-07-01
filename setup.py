@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='labelspark',
-    version='0.2.0',
+    version='0.2.1',
     packages=find_packages(),
     url='https://github.com/Labelbox/LabelSpark.git',
     description='Labelbox & Databricks integration helper library',
