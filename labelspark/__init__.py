@@ -9,6 +9,7 @@ from pyspark.sql.types import StructType
 from pyspark.sql.functions import col
 from pyspark.sql import Row
 
+
 # upload spark dataframe to Labelbox
 def create_dataset(client, spark_dataframe, dataset_name="Default"):
     # expects spark dataframe to have two columns: external_id, row_data
@@ -37,11 +38,15 @@ def get_annotations(client, project_id, spark, sc):
     bronze_table = dataframe_schema_enrichment(bronze_table)
     return bronze_table
 
-import requests #we need to handle a large frame-by-frame dataset for videos, so we use requests
+
+import requests  #we need to handle a large frame-by-frame dataset for videos, so we use requests
+
+
 def get_videoframe_annotations(bronze_video_labels, API_KEY, spark, sc):
     # This method takes in the bronze table from get_annotations and produces
     # an array of bronze dataframes containing frame labels for each project
-    bronze_video_labels = bronze_video_labels.withColumnRenamed("DataRow ID", "DataRowID")
+    bronze_video_labels = bronze_video_labels.withColumnRenamed(
+        "DataRow ID", "DataRowID")
     koalas_bronze = bronze_video_labels.to_koalas()
 
     # We manually build a string of frame responses to leverage our existing jsonToDataFrame code, which takes in JSON
@@ -49,12 +54,15 @@ def get_videoframe_annotations(bronze_video_labels, API_KEY, spark, sc):
     master_array_of_json_arrays = []
     master_array_of_toplevel_rows = []
     for index, row in koalas_bronze.iterrows():
-        response = requests.get(row.Label.frames, headers=headers,
-                                stream=False)  # reach out to Labelbox and get individual frame labels back
-        array_of_string_responses = ["{\"DataRow ID\":" + "\"" + row.DataRowID + "\","
-                                     + "\"Label\":" + line.decode('utf-8') + "}"
-                                     for line in response.iter_lines()]
-        massive_string_of_responses = "[" + ",".join(array_of_string_responses) + "]"
+        response = requests.get(
+            row.Label.frames, headers=headers, stream=False
+        )  # reach out to Labelbox and get individual frame labels back
+        array_of_string_responses = [
+            "{\"DataRow ID\":" + "\"" + row.DataRowID + "\"," + "\"Label\":" +
+            line.decode('utf-8') + "}" for line in response.iter_lines()
+        ]
+        massive_string_of_responses = "[" + ",".join(
+            array_of_string_responses) + "]"
         master_array_of_json_arrays.append(massive_string_of_responses)
 
     array_of_bronze_dataframes = []
@@ -62,6 +70,7 @@ def get_videoframe_annotations(bronze_video_labels, API_KEY, spark, sc):
         array_of_bronze_dataframes.append(jsonToDataFrame(frameset, spark, sc))
 
     return array_of_bronze_dataframes
+
 
 # processes the bronze table into a flattened one
 def flatten_bronze_table(bronze_table):
@@ -101,9 +110,11 @@ def bronze_to_silver(bronze_table):
 
     # video labels need special handling
     video = False
-    if "Label.frameNumber" in bronze_table.columns: video = True
+    if "Label.frameNumber" in bronze_table.columns:
+        video = True
     if video:
-        bronze_table = bronze_table.withColumnRenamed("Label.frameNumber", "frameNumber")
+        bronze_table = bronze_table.withColumnRenamed("Label.frameNumber",
+                                                      "frameNumber")
     bronze_table = bronze_table.to_koalas()
 
     new_json = []
@@ -135,7 +146,8 @@ def bronze_to_silver(bronze_table):
 
         my_dictionary["DataRowID"] = row.DataRowID  # close it out
         if video:
-            my_dictionary["frameNumber"] = row.frameNumber  # need to store the unique framenumber identifier for video
+            my_dictionary[
+                "frameNumber"] = row.frameNumber  # need to store the unique framenumber identifier for video
         new_json.append(my_dictionary)
 
     parsed_classifications = pd.DataFrame(new_json).to_spark()
@@ -144,9 +156,12 @@ def bronze_to_silver(bronze_table):
     bronze_table = bronze_table.to_spark()
     if video:
         # need to inner-join with frameNumber to avoid creating N-squared datarows, since each frame has same DataRowID
-        joined_df = parsed_classifications.join(bronze_table, ["DataRowID", "frameNumber"], "inner")
+        joined_df = parsed_classifications.join(bronze_table,
+                                                ["DataRowID", "frameNumber"],
+                                                "inner")
     else:
-        joined_df = parsed_classifications.join(bronze_table, ["DataRowID"], "inner")
+        joined_df = parsed_classifications.join(bronze_table, ["DataRowID"],
+                                                "inner")
 
     joined_df = joined_df.withColumnRenamed("DataRowID", "DataRow ID")
     return joined_df
