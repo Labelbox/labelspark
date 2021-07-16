@@ -1,10 +1,10 @@
-# LabelSpark Python Library
+# Labelbox Connector for Apache Spark
 
-Access the LabelSpark library (a connector between Databricks and Labelbox) to connect an unstructured dataset to Labelbox, programmatically set up an ontology for labeling, and return the labeled dataset in a Spark DataFrame. This library was designed to run in a Databricks environment, although it will function in any Spark environment with some modification. 
+Access the Labelbox Connector for Apache Spark to connect an unstructured dataset to Labelbox, programmatically set up an ontology for labeling, and return the labeled dataset in a Spark DataFrame. This library was designed to run in a Databricks environment, although it will function in any Spark environment with some modification. 
 
 Labelbox is the enterprise-grade training data solution with fast AI enabled labeling tools, labeling automation, human workforce, data management, a powerful API for integration & SDK for extensibility. Visit [Labelbox](http://labelbox.com/) for more information.
 
-LabelSpark is currently in beta. It may contain errors or inaccuracies and may not function as well as commercially released software. Please report any issues/bugs via [Github Issues](https://github.com/Labelbox/LabelSpark/issues).
+This library is currently in beta. It may contain errors or inaccuracies and may not function as well as commercially released software. Please report any issues/bugs via [Github Issues](https://github.com/Labelbox/LabelSpark/issues).
 
 
 ## Table of Contents
@@ -23,18 +23,12 @@ LabelSpark is currently in beta. It may contain errors or inaccuracies and may n
 
 ## Installation
 
-Prerequisite: Install the [Labelbox SDK](https://pypi.org/project/labelbox/) on your cluster. Alternatively, you can use %pip to install it as a notebook-scoped library from your Databricks notebook: 
+
+Install LabelSpark to your cluster by uploading a Python Wheel to the cluster, or via notebook-scoped library installation in the notebook. The installation will also add the Labelbox SDK, a requirement for LabelSpark to function. LabelSpark is available via pypi: 
 
 ```
-%pip install labelbox
+pip install labelspark
 ```
-
-Next, install LabelSpark to your cluster by uploading a Python Wheel to the cluster, or via notebook-scoped library installation in the notebook. Currently LabelSpark is available via this Git repo: 
-
-```
-%pip install git+https://github.com/Labelbox/labelspark
-```
-We will make LabelSpark available on PyPi after the beta period is over. 
 
 ## Documentation
 
@@ -65,9 +59,32 @@ flattened_bronze_DF = labelspark.flatten_bronze_table(bronze_DF)
 queryable_silver_DF = labelspark.bronze_to_silver(bronze_DF)
 ```
 
+### How To Get Video Project Annotations
+
+Because Labelbox Video projects can contain multiple videos, you must use the _get_videoframe_annotations_ method to return an array of DataFrames for each video in your project. Each DataFrame contains frame-by-frame annotation for a video in the project: 
+
+```
+bronze_video = labelspark.get_annotations(client,"labelbox_video_project_id_here", spark, sc) 
+video_dataframes = labelspark.get_videoframe_annotations(bronze_video, API_KEY, spark, sc)    #note this extra step for video projects 
+```
+You may use standard LabelSpark methods iteratively to create your flattened bronze tables and silver tables: 
+```
+flattened_bronze_video_dataframes = []
+silver_video_dataframes = [] 
+for frameset in video_dataframes: 
+  flattened_bronze_video_dataframes.append(labelspark.flatten_bronze_table(frameset))
+  silver_video_dataframes.append(labelspark.bronze_to_silver(frameset))
+```
+This is how you would display the first video's frames and annotations, in sorted order: 
+```
+display(silver_video_dataframes[0]
+        .join(bronze_video, ["DataRow ID"], "inner")
+        .orderBy('frameNumber'), ascending = False)
+```
+
 While using LabelSpark, you will likely also use the Labelbox SDK (e.g. for programmatic ontology creation). These resources will help familiarize you with the Labelbox Python SDK: 
 * [Visit our docs](https://labelbox.com/docs/python-api) to learn how the SDK works
-* Checkout our [notebook examples](examples/) to follow along with interactive tutorials
+* Checkout our [notebook examples](https://github.com/Labelbox/labelspark/tree/master/notebooks) to follow along with interactive tutorials
 * view our [API reference](https://labelbox.com/docs/python-api/api-reference).
 
 ## Authentication
