@@ -42,7 +42,7 @@ def get_annotations(client, project_id, spark, sc):
 import requests  #we need to handle a large frame-by-frame dataset for videos, so we use requests
 
 
-def get_videoframe_annotations(bronze_video_labels, API_KEY, spark, sc):
+def get_videoframe_annotations(bronze_video_labels, api_key, spark, sc):
     # This method takes in the bronze table from get_annotations and produces
     # an array of bronze dataframes containing frame labels for each project
     bronze_video_labels = bronze_video_labels.withColumnRenamed(
@@ -50,19 +50,15 @@ def get_videoframe_annotations(bronze_video_labels, API_KEY, spark, sc):
     koalas_bronze = bronze_video_labels.to_koalas()
 
     # We manually build a string of frame responses to leverage our existing jsonToDataFrame code, which takes in JSON
-    headers = {'Authorization': f"Bearer {API_KEY}"}
+    headers = {'Authorization': f"Bearer {api_key}"}
     master_array_of_json_arrays = []
-    master_array_of_toplevel_rows = []
     for index, row in koalas_bronze.iterrows():
-        response = requests.get(
-            row.Label.frames, headers=headers, stream=False
-        )  # reach out to Labelbox and get individual frame labels back
-        array_of_string_responses = [
-            "{\"DataRow ID\":" + "\"" + row.DataRowID + "\"," + "\"Label\":" +
-            line.decode('utf-8') + "}" for line in response.iter_lines()
-        ]
-        massive_string_of_responses = "[" + ",".join(
-            array_of_string_responses) + "]"
+        response = requests.get(row.Label.frames, headers=headers, stream=False)
+        data = []
+        for line in response.iter_lines():
+            data.append({"DataRow ID": row.DataRowID,
+                         "Label": json.loads(line.decode('utf-8'))})
+        massive_string_of_responses = json.dumps(data)
         master_array_of_json_arrays.append(massive_string_of_responses)
 
     array_of_bronze_dataframes = []
@@ -151,7 +147,6 @@ def bronze_to_silver(bronze_table):
         new_json.append(my_dictionary)
 
     parsed_classifications = pd.DataFrame(new_json).to_spark()
-    print(parsed_classifications)
 
     bronze_table = bronze_table.to_spark()
     if video:
@@ -163,8 +158,8 @@ def bronze_to_silver(bronze_table):
         joined_df = parsed_classifications.join(bronze_table, ["DataRowID"],
                                                 "inner")
 
-    joined_df = joined_df.withColumnRenamed("DataRowID", "DataRow ID")
-    return joined_df
+    return joined_df.withColumnRenamed("DataRowID", "DataRow ID")
+
 
 
 def jsonToDataFrame(json, spark, sc, schema=None):
