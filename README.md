@@ -23,7 +23,6 @@ This library is currently in beta. It may contain errors or inaccuracies and may
 
 ## Installation
 
-
 Install LabelSpark to your cluster by uploading a Python Wheel to the cluster, or via notebook-scoped library installation in the notebook. The installation will also add the Labelbox SDK, a requirement for LabelSpark to function. LabelSpark is available via pypi: 
 
 ```
