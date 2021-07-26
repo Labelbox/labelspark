@@ -60,7 +60,7 @@ queryable_silver_DF = labelspark.bronze_to_silver(bronze_DF)
 
 ### How To Get Video Project Annotations
 
-Because Labelbox Video projects can contain multiple videos, you must use the _get_videoframe_annotations_ method to return an array of DataFrames for each video in your project. Each DataFrame contains frame-by-frame annotation for a video in the project: 
+Because Labelbox Video projects can contain multiple videos, you must use the `get_videoframe_annotations` method to return an array of DataFrames for each video in your project. Each DataFrame contains frame-by-frame annotation for a video in the project: 
 
 ```
 bronze_video = labelspark.get_annotations(client,"labelbox_video_project_id_here", spark, sc) 
