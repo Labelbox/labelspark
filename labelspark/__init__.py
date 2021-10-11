@@ -56,8 +56,10 @@ def get_videoframe_annotations(bronze_video_labels, api_key, spark, sc):
         response = requests.get(row.Label.frames, headers=headers, stream=False)
         data = []
         for line in response.iter_lines():
-            data.append({"DataRow ID": row.DataRowID,
-                         "Label": json.loads(line.decode('utf-8'))})
+            data.append({
+                "DataRow ID": row.DataRowID,
+                "Label": json.loads(line.decode('utf-8'))
+            })
         massive_string_of_responses = json.dumps(data)
         master_array_of_json_arrays.append(massive_string_of_responses)
 
@@ -121,7 +123,12 @@ def bronze_to_silver(bronze_table):
         try:  # this won't work if there are no classifications
             for index, title in enumerate(row["Label.classifications.title"]):
                 if "Label.classifications.answer" in row:
-                    answer = row["Label.classifications.answer"][index]
+                    if row["Label.classifications.answer"][
+                            index] is not None:  # if answer is null, that means it exists in secondary "answers" column
+                        answer = row["Label.classifications.answer"][index]
+                    else:
+                        answer = row["Label.classifications.answers"][
+                            index]  # it must be a checklist if .answer is None
                 else:
                     answer = row["Label.classifications.answer.title"][index]
                 my_dictionary = add_json_answers_to_dictionary(
@@ -159,7 +166,6 @@ def bronze_to_silver(bronze_table):
                                                 "inner")
 
     return joined_df.withColumnRenamed("DataRowID", "DataRow ID")
-
 
 
 def jsonToDataFrame(json, spark, sc, schema=None):
@@ -228,7 +234,7 @@ def add_json_answers_to_dictionary(title, answer, my_dictionary):
         if isinstance(convert_from_literal_string, list):
             for item in convert_from_literal_string:  # should handle multiple items
                 my_dictionary = add_json_answers_to_dictionary(
-                    item["title"], item, my_dictionary)
+                    title, item, my_dictionary)
             # recursive call to get into the array of arrays
     except Exception as e:
         pass
@@ -238,11 +244,21 @@ def add_json_answers_to_dictionary(title, answer, my_dictionary):
     ):  # sometimes the answer is a JSON string; this happens when you have nested classifications
         parsed_answer = json.loads(answer)
         try:
-            answer = parsed_answer[
-                "value"]  # Labelbox syntax where the title is actually the "value" of the answer
+            answer = parsed_answer["title"]
         except Exception as e:
             pass
 
-    my_dictionary[title] = answer
+    # this runs if the literal stuff didn't run and it's not json
+    list_of_answers = []
+    if isinstance(answer, list):
+        for item in answer:
+            list_of_answers.append(item["title"])
+        answer = ",".join(list_of_answers)
+    elif isinstance(answer, dict):
+        answer = answer["title"]  # the value is in the title
+
+    # Perform check to make sure we do not overwrite a column
+    if title not in my_dictionary:
+        my_dictionary[title] = answer
 
     return my_dictionary
