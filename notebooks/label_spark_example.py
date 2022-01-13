@@ -6,7 +6,6 @@
 
 # DBTITLE 0,Project Setup
 from labelbox import Client
-import databricks.koalas as pd
 import labelspark
 
 try:
@@ -41,7 +40,7 @@ def create_unstructured_dataset():
     } for dataRow in dataSet.data_rows()]
 
     # Create DataFrame
-    images = pd.DataFrame(df_list)
+    images = spark.pandas.DataFrame(df_list)
     df_images = images.to_spark()
     #   display(df_images)
     df_images.registerTempTable("unstructured_data")
