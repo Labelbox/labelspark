@@ -1,6 +1,17 @@
 import json
 import urllib
-import databricks.koalas as pd
+
+import os
+os.environ.pop("ARROW_PRE_0_15_IPC_FORMAT")
+
+from packaging import version
+if version.parse(spark.version) < version.parse("3.2.0"):
+  import databricks.koalas as pd 
+  needs_koalas = True  
+else:
+  import pyspark.pandas as pd
+  needs_koalas = False
+
 import ast
 from labelbox import Client
 
@@ -15,10 +26,13 @@ def create_dataset(client, spark_dataframe, dataset_name="Default"):
     # expects spark dataframe to have two columns: external_id, row_data
     # external_id is the asset name ex: "photo.jpg"
     # row_data is the URL to the asset
-    spark_dataframe = spark_dataframe.to_koalas()
+    if needs_koalas:
+      spark_dataframe = spark_dataframe.to_koalas()
+    else:
+      spark_dataframe = spark_dataframe.to_pandas_on_spark()
     dataSet_new = client.create_dataset(name=dataset_name)
 
-    # ported Pandas code to koalas
+    # ported Pandas code
     data_row_urls = [{
         "external_id": row['external_id'],
         "row_data": row['row_data']
@@ -47,12 +61,15 @@ def get_videoframe_annotations(bronze_video_labels, api_key, spark, sc):
     # an array of bronze dataframes containing frame labels for each project
     bronze_video_labels = bronze_video_labels.withColumnRenamed(
         "DataRow ID", "DataRowID")
-    koalas_bronze = bronze_video_labels.to_koalas()
-
+    if needs_koalas:
+      bronze = bronze_video_labels.to_koalas()
+    else:
+      bronze = bronze_video_labels.to_pandas_on_spark()
+      
     # We manually build a string of frame responses to leverage our existing jsonToDataFrame code, which takes in JSON
     headers = {'Authorization': f"Bearer {api_key}"}
     master_array_of_json_arrays = []
-    for index, row in koalas_bronze.iterrows():
+    for index, row in bronze.iterrows():
         response = requests.get(row.Label.frames, headers=headers, stream=False)
         data = []
         for line in response.iter_lines():
@@ -113,8 +130,12 @@ def bronze_to_silver(bronze_table):
     if video:
         bronze_table = bronze_table.withColumnRenamed("Label.frameNumber",
                                                       "frameNumber")
-    bronze_table = bronze_table.to_koalas()
+    if needs_koalas:
+      bronze_table = bronze_table.to_koalas()
+    else:
+      bronze_table = bronze_table.to_pandas_on_spark()
 
+      
     new_json = []
     for index, row in bronze_table.iterrows():
         my_dictionary = {}
