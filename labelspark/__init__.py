@@ -1,11 +1,11 @@
 import json
 import urllib
 
-import os
-os.environ.pop("ARROW_PRE_0_15_IPC_FORMAT")
-
+#this code block is needed for backwards compatibility with older Spark versions
+from pyspark import SparkContext
 from packaging import version
-if version.parse(spark.version) < version.parse("3.2.0"):
+sc = SparkContext.getOrCreate()
+if version.parse(sc.version) < version.parse("3.2.0"):
   import databricks.koalas as pd 
   needs_koalas = True  
 else:
