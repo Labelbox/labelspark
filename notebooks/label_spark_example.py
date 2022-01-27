@@ -4,8 +4,19 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install packaging labelspark
+
+# COMMAND ----------
+
 # DBTITLE 0,Project Setup
 from labelbox import Client
+from packaging import version
+if version.parse(spark.version) < version.parse("3.2.0"): 
+    import databricks.koalas as pd 
+    needs_koalas = True 
+else:
+  import pyspark.pandas as pd
+  needs_koalas = False
 import labelspark
 
 try:
@@ -31,6 +42,7 @@ for project in projects:
 def create_unstructured_dataset():
     print("Creating table of unstructured image data")
     # Pull information from Data Lake or other storage
+    #replace this dataset string with a sample dataset string from Labelbox
     dataSet = client.get_dataset("ckolyi9ha7h800y7i5ppr3put")
 
     #creates a list of datarow dictionaries
@@ -40,7 +52,7 @@ def create_unstructured_dataset():
     } for dataRow in dataSet.data_rows()]
 
     # Create DataFrame
-    images = spark.pandas.DataFrame(df_list)
+    images = pd.DataFrame(df_list)
     df_images = images.to_spark()
     #   display(df_images)
     df_images.registerTempTable("unstructured_data")
@@ -69,7 +81,7 @@ if not table_exists:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
+# MAGIC 
 # MAGIC select * from unstructured_data
 
 # COMMAND ----------
@@ -81,15 +93,15 @@ client = Client(API_KEY)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC
+# MAGIC 
 # MAGIC LabelSpark expects a spark table with two columns; the first column "external_id" and second column "row_data"
-# MAGIC
+# MAGIC 
 # MAGIC external_id is a filename, like "birds.jpg" or "my_video.mp4"
-# MAGIC
+# MAGIC 
 # MAGIC row_data is the URL path to the file. Labelbox renders assets locally on your users' machines when they label, so your labeler will need permission to access that asset.
-# MAGIC
+# MAGIC 
 # MAGIC Example:
-# MAGIC
+# MAGIC 
 # MAGIC | external_id | row_data                             |
 # MAGIC |-------------|--------------------------------------|
 # MAGIC | image1.jpg  | https://url_to_your_asset/image1.jpg |
@@ -107,9 +119,9 @@ dataSet_new = labelspark.create_dataset(client, unstructured_data,
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC
+# MAGIC 
 # MAGIC You can use the labelbox SDK to build your ontology. An example is provided below.
-# MAGIC
+# MAGIC 
 # MAGIC Please refer to documentation at https://docs.labelbox.com/python-sdk/en/index-en
 
 # COMMAND ----------
@@ -171,11 +183,11 @@ print("Project Setup is complete.")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC
+# MAGIC 
 # MAGIC Be sure to provide your Labelbox Project ID (a long string like "ckolzeshr7zsy0736w0usbxdy") to labelspark get_annotations method to pull in your labeled dataset.
-# MAGIC
+# MAGIC 
 # MAGIC <br>bronze_table = labelspark.get_annotations(client,"ckolzeshr7zsy0736w0usbxdy", spark, sc)
-# MAGIC
+# MAGIC 
 # MAGIC *These other methods transform the bronze table and do not require a project ID.*
 # MAGIC <br>flattened_bronze_table = labelspark.flatten_bronze_table(bronze_table)
 # MAGIC <br>silver_table = labelspark.bronze_to_silver(bronze_table)
@@ -208,7 +220,7 @@ display(silver_table)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
+# MAGIC 
 # MAGIC SELECT * FROM silver_table
 # MAGIC WHERE `People.count` > 0
 # MAGIC AND `Umbrella.count` > 0
@@ -218,14 +230,14 @@ display(silver_table)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
+# MAGIC 
 # MAGIC SELECT * FROM silver_table
 # MAGIC WHERE `People.count` > 10
 
 # COMMAND ----------
 
-
 # DBTITLE 1,Demo Cleanup Code: Deleting Dataset and Projects
+
 def cleanup():
     client = Client(API_KEY)
     dataSet_new.delete()
