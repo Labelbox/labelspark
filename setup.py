@@ -10,5 +10,6 @@ setup(name='labelspark',
       description='Labelbox & Databricks integration helper library',
       long_description=long_description,
       long_description_content_type="text/markdown",
-      install_requires=["labelbox"],
+      install_requires=["labelbox",
+                        "packaging"],
       extras_require={'dev': ['pylint']})
