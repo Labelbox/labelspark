@@ -17,7 +17,8 @@ This library is currently in beta. It may contain errors or inaccuracies and may
 
 ## Requirements
 
-* Databricks Runtime 7.3 LTS or Later
+* Databricks: Runtime 9.1 LTS or Later
+* Apache Spark: 3.1.2 or Later
 * [Labelbox account](http://app.labelbox.com/)
 * [Generate a Labelbox API key](https://labelbox.com/docs/api/getting-started#create_api_key)
 
