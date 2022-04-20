@@ -22,7 +22,7 @@ from pyspark.sql import Row
 
 
 # upload spark dataframe to Labelbox
-def create_dataset(client, spark_dataframe, dataset_name="Default"):
+def create_dataset(client, spark_dataframe, iam_integration = 'DEFAULT', **kwargs): 
     # expects spark dataframe to have two columns: external_id, row_data
     # external_id is the asset name ex: "photo.jpg"
     # row_data is the URL to the asset
@@ -30,7 +30,7 @@ def create_dataset(client, spark_dataframe, dataset_name="Default"):
       spark_dataframe = spark_dataframe.to_koalas()
     else:
       spark_dataframe = spark_dataframe.to_pandas_on_spark()
-    dataSet_new = client.create_dataset(name=dataset_name)
+    dataSet_new = client.create_dataset(iam_integration = iam_integration, **kwargs)
 
     # ported Pandas code
     data_row_urls = [{
