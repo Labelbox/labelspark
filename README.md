@@ -37,7 +37,7 @@ Please consult the demo notebook in the "Notebooks" directory. LabelSpark includ
 1. Create your dataset in Labelbox from Databricks: 
 
 ```
-LB_dataset = labelspark.create_dataset(labelbox_client, spark_dataframe, "Name of Dataset")
+LB_dataset = labelspark.create_dataset(labelbox_client, spark_dataframe, name = "Name of Dataset")
 ```
 Where "spark_dataframe" is your dataframe of unstructured data with asset names and asset URLs in two columns, named "external_id" and "row_data" respectively. 
 
