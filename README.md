@@ -34,12 +34,13 @@ pip install labelspark
 
 Please consult the demo notebook in the "Notebooks" directory. LabelSpark includes 4 methods to help facilitate your workflow between Databricks and Labelbox. 
 
-1. Create your dataset in Labelbox from Databricks: 
+1. Create your dataset in Labelbox from Databricks. You can specify an [IAM integration](https://docs.labelbox.com/docs/iam-delegated-access) if desired. The below example creates a dataset with the default IAM integration set in the Labelbox account.
 
 ```
-LB_dataset = labelspark.create_dataset(labelbox_client, spark_dataframe, name = "Name of Dataset")
+LB_dataset = labelspark.create_dataset(labelbox_client, spark_dataframe, 
+                                       iam_integration = 'DEFAULT', name = "Name of Dataset")
 ```
-Where "spark_dataframe" is your dataframe of unstructured data with asset names and asset URLs in two columns, named "external_id" and "row_data" respectively. 
+Where "spark_dataframe" is your dataframe of unstructured data with asset names and asset URLs in two columns, named "external_id" and "row_data" respectively.
 
 | external_id | row_data                             |
 |-------------|--------------------------------------|
