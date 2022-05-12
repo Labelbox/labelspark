@@ -22,7 +22,7 @@ from pyspark.sql import Row
 
 
 # upload spark dataframe to Labelbox
-def create_dataset(client, spark_dataframe, iam_integration = 'DEFAULT', **kwargs): 
+def create_dataset(client, spark_dataframe, iam_integration = 'DEFAULT', metadata_field_names: List[str] = [], **kwargs): 
     # expects spark dataframe to have two columns: external_id, row_data
     # external_id is the asset name ex: "photo.jpg"
     # row_data is the URL to the asset
@@ -33,9 +33,15 @@ def create_dataset(client, spark_dataframe, iam_integration = 'DEFAULT', **kwarg
     dataSet_new = client.create_dataset(iam_integration = iam_integration, **kwargs)
 
     # ported Pandas code
+    # 1: customers have to create schema on LB.
+    # 2: customers need to specify the metadata field names when calling this method.
+        # is there way to use SDK to create schema??
     data_row_urls = [{
         "external_id": row['external_id'],
-        "row_data": row['row_data']
+        "row_data": row['row_data'],
+        "metadata_fileds": [{
+          "schema_id": get_schema_id(metadata_fieldname_1), 
+          "value": row[metadata_fieldname_1]}]
     } for index, row in spark_dataframe.iterrows()]
     upload_task = dataSet_new.create_data_rows(data_row_urls)
     upload_task.wait_till_done()
