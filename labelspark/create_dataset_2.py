@@ -14,15 +14,20 @@ else:
   needs_koalas = False
 
 def get_schema_id_for_metadata_field(client: labelbox.client.Client, metadata_field_name: str) -> str:
-    # if metadata_field_name has not been created in Labelbox UI, raise exception and ask users to create it in Labelbox.
-    # in the future, we can automatically create it for them.
+    # This method searches the metadata schemas in labelbox, and returns its uid if found. Otherwise, raise exception and ask users to create it in Labelbox.
+    # TODO: in the future, we can automatically create it for them.
     mdo = client.get_data_row_metadata_ontology()
-    schema = mdo.reserved_by_name[metadata_field_name]
-    if schema == None: #TODO: change the logic to be what mdo returns if it does not find a schema from the name
-        schema = mdo.custom_by_name[metadata_field_name]
-        if schema == None: #TODO: change the logic to be what mdo returns if it does not find a schema from the name
-            raise Exception(f"Metadata schema {metadata_field_name} has not been created in Labelbox UI. Please go to URL to create a metadata schema first.")
-    return schema.uid
+    try:
+      schema = mdo.reserved_by_name[metadata_field_name]
+      return schema.uid
+    except KeyError as e:
+      pass
+
+    try: 
+      schema = mdo.custom_by_name[metadata_field_name]
+      return schema.uid
+    except KeyError as e:
+      raise Exception(f"Metadata schema {metadata_field_name} has not been created in Labelbox UI. Please go to URL to create a custom metadata schema first.")
 
 # upload spark dataframe to Labelbox
 def create_dataset(client, spark_dataframe, iam_integration = 'DEFAULT', metadata_headers: Optional[List[str]] = None, **kwargs):
