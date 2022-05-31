@@ -6,3 +6,4 @@ LABELBOX_DEFAULT_TYPE_DICTIONARY = {
     'Has Open Issues': 'integer',
     'Seconds to Label': 'float',
 }
+
