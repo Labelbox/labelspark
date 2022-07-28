@@ -1,4 +1,3 @@
-#this code block is needed for backwards compatibility with older Spark versions
 from labelbox.schema.data_row_metadata import DataRowMetadataKind as metadata_type
 from pyspark import SparkContext
 from packaging import version
@@ -25,11 +24,6 @@ def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), ia
                                               "number"
                                               "datetime"
   """
-  if needs_koalas:
-    spark_dataframe = spark_dataframe.to_koalas()
-  else:
-    spark_dataframe = spark_dataframe.to_pandas_on_spark()
-
   lb_dataset = client.create_dataset(name=dataset_name, iam_integration=iam_integration, **kwargs)
 
   if metadata_index:
@@ -115,13 +109,14 @@ def create_spark_data_rows(client, spark_dataframe, labelbox_metadata_type_index
     data_row_dict['metadata_fields'] = []
     if labelbox_metadata_type_index:
       for medata_field in labelbox_metadata_type_index:
-        if metadata_labelbox_data_types[medata_field] == metadata_type.enum:
+        if metadata_labelbox_data_types[medata_field] == "enum":
           enum_value = metadata_dict[medata_field][str(row.__getitem__(medata_field))]
           data_row_dict['metadata_fields'].append({
             "schema_id" : enum_value.parent,
             "value" : enum_value.uid        
           })
         elif row.__getitem__(medata_field) is not None:
+          print(metadata_dict[medata_field])
           data_row_dict['metadata_fields'].append({
             "schema_id" : metadata_dict[medata_field].uid,
             "value" : str(row.__getitem__(medata_field)) 
