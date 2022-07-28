@@ -67,9 +67,9 @@ def connect_spark_metadata(client, spark_dataframe, labelbox_metadata_type_index
       mdo.refresh_ontology()
       mdo_dict = mdo._get_ontology()
       labelbox_metadata_names = [field['name'] for field in mdo_dict]
-  if "integration_source" not in labelbox_metadata_names:
+  if "lb_integration_source" not in labelbox_metadata_names:
       labelbox_metadata_type = metadata_type.string
-      create_metadata_field(mdo, spark_dataframe, "lb_partner_source", labelbox_metadata_type)
+      create_metadata_field(mdo, spark_dataframe, "lb_integration_source", labelbox_metadata_type)
 
 def create_metadata_field(metadata_ontology_object, spark_dataframe, spark_metadata_name, labelbox_metadata_type):
   """ Given a metadata field name and a column, creates a metadata field in Laeblbox given a labelbox metadata type
@@ -121,7 +121,7 @@ def create_spark_data_rows(client, spark_dataframe, labelbox_metadata_type_index
             "value" : str(row.__getitem__(medata_field)) 
           })
     data_row_dict['metadata_fields'].append({
-      "schema_id" : metadata_dict["integration_source"].uid,
+      "schema_id" : metadata_dict["lb_integration_source"].uid,
       "value" : "Databricks"
     })
     data_rows_upload.append(data_row_dict)
