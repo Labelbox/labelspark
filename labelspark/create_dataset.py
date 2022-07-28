@@ -109,7 +109,7 @@ def create_spark_data_rows(client, spark_dataframe, labelbox_metadata_type_index
     data_row_dict['metadata_fields'] = []
     if labelbox_metadata_type_index:
       for medata_field in labelbox_metadata_type_index:
-        if metadata_labelbox_data_types[medata_field] == "enum":
+        if labelbox_metadata_type_index[medata_field] == "enum":
           enum_value = metadata_dict[medata_field][str(row.__getitem__(medata_field))]
           data_row_dict['metadata_fields'].append({
             "schema_id" : enum_value.parent,
