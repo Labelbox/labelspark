@@ -58,15 +58,16 @@ def connect_spark_metadata(client, spark_dataframe, labelbox_metadata_type_index
   mdo = client.get_data_row_metadata_ontology()
   mdo_dict = mdo._get_ontology()
   labelbox_metadata_names = [field['name'] for field in mdo_dict]
-  spark_metadata_names = list(labelbox_metadata_type_index.keys())
-  for spark_metadata_name in spark_metadata_names:
-    if spark_metadata_name not in labelbox_metadata_names:
-      ## If the metadata field isn't present in Labelbox, create it and refresh the object
-      labelbox_metadata_type = labelbox_metadata_type_index[spark_metadata_name]
-      create_metadata_field(mdo, spark_dataframe, spark_metadata_name, labelbox_metadata_type)
-      mdo.refresh_ontology()
-      mdo_dict = mdo._get_ontology()
-      labelbox_metadata_names = [field['name'] for field in mdo_dict]
+  if labelbox_metadata_type_index:
+    spark_metadata_names = list(labelbox_metadata_type_index.keys())
+    for spark_metadata_name in spark_metadata_names:
+      if spark_metadata_name not in labelbox_metadata_names:
+        ## If the metadata field isn't present in Labelbox, create it and refresh the object
+        labelbox_metadata_type = labelbox_metadata_type_index[spark_metadata_name]
+        create_metadata_field(mdo, spark_dataframe, spark_metadata_name, labelbox_metadata_type)
+        mdo.refresh_ontology()
+        mdo_dict = mdo._get_ontology()
+        labelbox_metadata_names = [field['name'] for field in mdo_dict]
   if "lb_integration_source" not in labelbox_metadata_names:
       labelbox_metadata_type = metadata_type.string
       create_metadata_field(mdo, spark_dataframe, "lb_integration_source", labelbox_metadata_type)
