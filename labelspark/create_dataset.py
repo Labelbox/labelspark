@@ -45,7 +45,7 @@ def create_dataset(client, spark_dataframe, dataset_name=str(time.now()), iam_in
   else:
     labelbox_metadata_type_index = False
 
-  metadata_ontology = connect_spark_metadata(client, spark_dataframe, labelbox_metadata_type_index)
+  connect_spark_metadata(client, spark_dataframe, labelbox_metadata_type_index)
   data_row_upload = create_spark_data_rows(client, spark_dataframe, labelbox_metadata_type_index)
   upload_task = lb_dataset.create_data_rows(data_row_upload)
   upload_task.wait_till_done()
