@@ -116,7 +116,6 @@ def create_spark_data_rows(client, spark_dataframe, labelbox_metadata_type_index
             "value" : enum_value.uid        
           })
         elif row.__getitem__(medata_field) is not None:
-          print(metadata_dict[medata_field])
           data_row_dict['metadata_fields'].append({
             "schema_id" : metadata_dict[medata_field].uid,
             "value" : str(row.__getitem__(medata_field)) 
