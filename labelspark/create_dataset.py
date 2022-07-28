@@ -2,7 +2,7 @@
 from labelbox.schema.data_row_metadata import DataRowMetadataKind as metadata_type
 from pyspark import SparkContext
 from packaging import version
-import time
+from datetime import datetime
 sc = SparkContext.getOrCreate()
 if version.parse(sc.version) < version.parse("3.2.0"):
   import databricks.koalas as pd
@@ -11,7 +11,7 @@ else:
   import pyspark.pandas as pd
   needs_koalas = False  
 
-def create_dataset(client, spark_dataframe, dataset_name=str(time.now()), iam_integration='DEFAULT', metadata_index=False, **kwargs):
+def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, **kwargs):
   """ Creates a Labelbox dataset and creates data rows given a spark dataframe
   Args:
       client                  :     labelbox.Client object
