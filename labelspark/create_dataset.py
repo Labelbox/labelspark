@@ -52,11 +52,11 @@ def create_dataset(client, spark_dataframe, dataset_name=str(time.now()), iam_in
   print("Dataset created in Labelbox.")
   return lb_dataset
 
-def connect_spark_metadata(client, pyspark_dataframe, labelbox_metadata_type_index):
+def connect_spark_metadata(client, spark_dataframe, labelbox_metadata_type_index):
   """ Checks to make sure all desired metadata for upload has a corresponding field in Labelbox. Note limits on metadata field options, here https://docs.labelbox.com/docs/limits
   Args:
     client                          :    labelbox.Client object
-    pyspark_dataframe               :    pyspark.sql.dataframe.Dataframe object
+    spark_dataframe                 :    pyspark.sql.dataframe.Dataframe object
     labelbox_metadata_type_index    :    Dictionary where {key=column_name : value=labelbox.schema.data_row_metadata.DataRowMetadataKind options}
   Returns:
     Nothing - the metadata ontology has been updated
@@ -77,7 +77,7 @@ def connect_spark_metadata(client, pyspark_dataframe, labelbox_metadata_type_ind
       labelbox_metadata_type = metadata_type.string
       create_metadata_field(mdo, spark_dataframe, "lb_partner_source", labelbox_metadata_type)
 
-def create_metadata_field(metadata_ontology_object, pyspark_dataframe, spark_metadata_name, labelbox_metadata_type):
+def create_metadata_field(metadata_ontology_object, spark_dataframe, spark_metadata_name, labelbox_metadata_type):
   """ Given a metadata field name and a column, creates a metadata field in Laeblbox given a labelbox metadata type
   Args:
     metadata_ontology_object        :    labelbox.schema.data_row_metadata.DataRowMetadataOntology object
@@ -94,11 +94,11 @@ def create_metadata_field(metadata_ontology_object, pyspark_dataframe, spark_met
     enum_options = None
   metadata_ontology_object.create_schema(name=spark_metadata_name, kind=labelbox_metadata_type, options=enum_options)  
 
-def create_spark_data_rows(client, pyspark_dataframe, labelbox_metadata_type_index):
+def create_spark_data_rows(client, spark_dataframe, labelbox_metadata_type_index):
   """ Creates data rows given a spark table and an index that assigns a metadata type to a column name
   Args:
     client                          :    labelbox.Client object
-    pyspark_dataframe               :    pyspark.sql.dataframe.Dataframe object
+    spark_dataframe                 :    pyspark.sql.dataframe.Dataframe object
     labelbox_metadata_type_index    :    Dictionary where key = column name and value = one of the enum options from labelbox.schema.data_row_metadata.DataRowMetadataKind class
   Returns:
     List of data row dictionaries to-be-uploaded
@@ -107,7 +107,7 @@ def create_spark_data_rows(client, pyspark_dataframe, labelbox_metadata_type_ind
   mdo = client.get_data_row_metadata_ontology()
   metadata_dict = mdo.reserved_by_name
   metadata_dict.update(mdo.custom_by_name)
-  for row in pyspark_dataframe.collect():
+  for row in spark_dataframe.collect():
     data_row_dict = {
       "row_data" : row.__getitem__("row_data"),
       "external_id" : row.__getitem__("external_id")
