@@ -34,19 +34,28 @@ pip install labelspark
 
 Please consult the demo notebook in the "Notebooks" directory. LabelSpark includes 4 methods to help facilitate your workflow between Databricks and Labelbox. 
 
-1. Create your dataset in Labelbox from Databricks. You can specify an [IAM integration](https://docs.labelbox.com/docs/iam-delegated-access) if desired. The below example creates a dataset with the default IAM integration set in the Labelbox account.
+1. Create your dataset in Labelbox from Databricks. You can specify an [IAM integration](https://docs.labelbox.com/docs/iam-delegated-access) if desired (or set to none with iam_integration=None). The below example creates a dataset with the default IAM integration set in the Labelbox account.
 
 ```
-LB_dataset = labelspark.create_dataset(labelbox_client, spark_dataframe, 
-                                       iam_integration = 'DEFAULT', name = "Name of Dataset")
+LB_dataset = labelspark.create_dataset(labelbox_client, spark_dataframe, dataset_name="Sample Dataset", 
+                                      iam_integration='DEFAULT', metadata_index = dictionary_of_metadata_columns)
 ```
-Where "spark_dataframe" is your dataframe of unstructured data with asset names and asset URLs in two columns, named "external_id" and "row_data" respectively.
+Where "spark_dataframe" is your dataframe of unstructured data with asset names and asset URLs in two columns, named "external_id" and "row_data" respectively. The metadata_index is an optional parameter if you wish to import metadata from other Spark table columns to Labelbox.
 
-| external_id | row_data                             |
-|-------------|--------------------------------------|
-| image1.jpg  | https://url_to_your_asset/image1.jpg |
-| image2.jpg  | https://url_to_your_asset/image2.jpg |
-| image3.jpg  | https://url_to_your_asset/image3.jpg |
+| external_id | row_data                             | optional_metadata_field | optional_metadata_field_2| ... |
+|-------------|--------------------------------------|-------------------------|--------------------------|-----|
+| image1.jpg  | https://url_to_your_asset/image1.jpg |  "Example string 1"     |          1234            | ... |
+| image2.jpg  | https://url_to_your_asset/image2.jpg |  "Example string 2"     |          88.8            | ... |
+| image3.jpg  | https://url_to_your_asset/image3.jpg |  "Example string 3"     |          123.5           | ... |
+
+The metadata_index dictionary follows this pattern: {column_name: metadata_type} where metadata_type is one of the following strings: "enum", "string", "number", or "datetime". In the above example, the metadata_index_dictionary would look like this: 
+```
+metadata_labelbox_data_types = {
+  "optional_metadata_field" : "string",
+  "optional_metadata_field_2" : "number"
+  }
+```
+Visit [this page](https://docs.labelbox.com/docs/datarow-metadata) for more information about metadata in Labelbox. 
 
 2. Pull your raw annotations back into Databricks. 
 ```
