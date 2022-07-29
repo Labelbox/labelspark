@@ -1,6 +1,6 @@
-# Labelbox Connector for Apache Spark
+# Labelbox Connector for Databricks
 
-Access the Labelbox Connector for Apache Spark to connect an unstructured dataset to Labelbox, programmatically set up an ontology for labeling, and return the labeled dataset in a Spark DataFrame. This library was designed to run in a Databricks environment, although it will function in any Spark environment with some modification. 
+Access the Labelbox Connector for Databricks to connect an unstructured dataset to Labelbox, programmatically set up an ontology for labeling, and return the labeled dataset in a Spark DataFrame. This library was designed to run in a Databricks environment, although it will function in any Spark environment with some modification. 
 
 Labelbox is the enterprise-grade training data solution with fast AI enabled labeling tools, labeling automation, human workforce, data management, a powerful API for integration & SDK for extensibility. Visit [Labelbox](http://labelbox.com/) for more information.
 
@@ -55,6 +55,8 @@ metadata_labelbox_data_types = {
   "optional_metadata_field_2" : "number"
   }
 ```
+*Note: This library will set reserved field "lb_integration_source" in Labelbox metadata to "Databricks" automatically. This allows for enhanced search capabilities in Labelbox Catalog, and more transparent data lineage.*
+
 Visit [this page](https://docs.labelbox.com/docs/datarow-metadata) for more information about metadata in Labelbox. 
 
 2. Pull your raw annotations back into Databricks. 
