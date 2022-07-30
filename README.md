@@ -61,7 +61,7 @@ Visit [this page](https://docs.labelbox.com/docs/datarow-metadata) for more info
 
 2. Pull your raw annotations back into Databricks. 
 ```
-bronze_DF = labelspark.get_annotations(client,"labelbox_project_id_here", spark, sc) 
+bronze_DF = labelspark.get_annotations(labelbox_client,"labelbox_project_id_here", spark, sc) 
 ```
 
 3. You can use the our flattener to flatten the "Label" JSON column into component columns, or use the silver table method to produce a more queryable table of your labeled assets. Both of these methods take in the bronze table of annotations from above: 
@@ -76,7 +76,7 @@ queryable_silver_DF = labelspark.bronze_to_silver(bronze_DF)
 Because Labelbox Video projects can contain multiple videos, you must use the `get_videoframe_annotations` method to return an array of DataFrames for each video in your project. Each DataFrame contains frame-by-frame annotation for a video in the project: 
 
 ```
-bronze_video = labelspark.get_annotations(client,"labelbox_video_project_id_here", spark, sc) 
+bronze_video = labelspark.get_annotations(labelbox_client,"labelbox_video_project_id_here", spark, sc) 
 video_dataframes = labelspark.get_videoframe_annotations(bronze_video, API_KEY, spark, sc)    #note this extra step for video projects 
 ```
 You may use standard LabelSpark methods iteratively to create your flattened bronze tables and silver tables: 
