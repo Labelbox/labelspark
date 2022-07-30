@@ -1,6 +1,6 @@
-# Labelbox Connector for Apache Spark
+# Labelbox Connector for Databricks
 
-Access the Labelbox Connector for Apache Spark to connect an unstructured dataset to Labelbox, programmatically set up an ontology for labeling, and return the labeled dataset in a Spark DataFrame. This library was designed to run in a Databricks environment, although it will function in any Spark environment with some modification. 
+Access the Labelbox Connector for Databricks to connect an unstructured dataset to Labelbox, programmatically set up an ontology for labeling, and return the labeled dataset in a Spark DataFrame. This library was designed to run in a Databricks environment, although it will function in any Spark environment with some modification. 
 
 Labelbox is the enterprise-grade training data solution with fast AI enabled labeling tools, labeling automation, human workforce, data management, a powerful API for integration & SDK for extensibility. Visit [Labelbox](http://labelbox.com/) for more information.
 
@@ -34,23 +34,34 @@ pip install labelspark
 
 Please consult the demo notebook in the "Notebooks" directory. LabelSpark includes 4 methods to help facilitate your workflow between Databricks and Labelbox. 
 
-1. Create your dataset in Labelbox from Databricks. You can specify an [IAM integration](https://docs.labelbox.com/docs/iam-delegated-access) if desired. The below example creates a dataset with the default IAM integration set in the Labelbox account.
+1. Create your dataset in Labelbox from Databricks. You can specify an [IAM integration](https://docs.labelbox.com/docs/iam-delegated-access) if desired (or set to none with iam_integration=None). The below example creates a dataset with the default IAM integration set in the Labelbox account.
 
 ```
-LB_dataset = labelspark.create_dataset(labelbox_client, spark_dataframe, 
-                                       iam_integration = 'DEFAULT', name = "Name of Dataset")
+LB_dataset = labelspark.create_dataset(labelbox_client, spark_dataframe, dataset_name="Sample Dataset", 
+                                      iam_integration='DEFAULT', metadata_index = dictionary_of_metadata_columns)
 ```
-Where "spark_dataframe" is your dataframe of unstructured data with asset names and asset URLs in two columns, named "external_id" and "row_data" respectively.
+Where "spark_dataframe" is your dataframe of unstructured data with asset names and asset URLs in two columns, named "external_id" and "row_data" respectively. The metadata_index is an optional parameter if you wish to import metadata from other Spark table columns to Labelbox.
 
-| external_id | row_data                             |
-|-------------|--------------------------------------|
-| image1.jpg  | https://url_to_your_asset/image1.jpg |
-| image2.jpg  | https://url_to_your_asset/image2.jpg |
-| image3.jpg  | https://url_to_your_asset/image3.jpg |
+| external_id | row_data                             | optional_metadata_field | optional_metadata_field_2| ... |
+|-------------|--------------------------------------|-------------------------|--------------------------|-----|
+| image1.jpg  | https://url_to_your_asset/image1.jpg |  "Example string 1"     |          1234            | ... |
+| image2.jpg  | https://url_to_your_asset/image2.jpg |  "Example string 2"     |          88.8            | ... |
+| image3.jpg  | https://url_to_your_asset/image3.jpg |  "Example string 3"     |          123.5           | ... |
+
+The metadata_index dictionary follows this pattern: {column_name: metadata_type} where metadata_type is one of the following strings: "enum", "string", "number", or "datetime". In the above example, the metadata_index_dictionary would look like this: 
+```
+metadata_labelbox_data_types = {
+  "optional_metadata_field" : "string",
+  "optional_metadata_field_2" : "number"
+  }
+```
+*Note: This library will set reserved field "lb_integration_source" in Labelbox metadata to "Databricks" automatically. This allows for enhanced search capabilities in Labelbox Catalog, and more transparent data lineage.*
+
+Visit [this page](https://docs.labelbox.com/docs/datarow-metadata) for more information about metadata in Labelbox. 
 
 2. Pull your raw annotations back into Databricks. 
 ```
-bronze_DF = labelspark.get_annotations(client,"labelbox_project_id_here", spark, sc) 
+bronze_DF = labelspark.get_annotations(labelbox_client,"labelbox_project_id_here", spark, sc) 
 ```
 
 3. You can use the our flattener to flatten the "Label" JSON column into component columns, or use the silver table method to produce a more queryable table of your labeled assets. Both of these methods take in the bronze table of annotations from above: 
@@ -65,7 +76,7 @@ queryable_silver_DF = labelspark.bronze_to_silver(bronze_DF)
 Because Labelbox Video projects can contain multiple videos, you must use the `get_videoframe_annotations` method to return an array of DataFrames for each video in your project. Each DataFrame contains frame-by-frame annotation for a video in the project: 
 
 ```
-bronze_video = labelspark.get_annotations(client,"labelbox_video_project_id_here", spark, sc) 
+bronze_video = labelspark.get_annotations(labelbox_client,"labelbox_video_project_id_here", spark, sc) 
 video_dataframes = labelspark.get_videoframe_annotations(bronze_video, API_KEY, spark, sc)    #note this extra step for video projects 
 ```
 You may use standard LabelSpark methods iteratively to create your flattened bronze tables and silver tables: 
