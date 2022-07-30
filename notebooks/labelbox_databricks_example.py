@@ -40,7 +40,7 @@
 # COMMAND ----------
 
 # DBTITLE 1,Install Labelbox Library & Labelbox Connector for Databricks
-# MAGIC %pip install git+https://github.com/Labelbox/labelspark.git@rj_create_dataset_update#egg=labelspark&subdirectory=labelspark
+# MAGIC %pip install labelspark
 
 # COMMAND ----------
 
