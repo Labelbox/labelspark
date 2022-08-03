@@ -1,5 +1,4 @@
 from labelbox.schema.data_row_metadata import DataRowMetadataKind as lb_metadata_type
-from pyspark import SparkContext
 from packaging import version
 from datetime import datetime
 
@@ -180,11 +179,7 @@ def create_data_row_uploads(spark_dataframe, sc):
       "metadata_fields" : pyspark_row.uploads.metadata_fields
     }
   
-  list_of_values = spark_dataframe.select("uploads").cache().collect()
-  
-  rdd_list = sc.parallelize(list_of_values)
-  
-  upload_list = rdd_list.rdd.map(lambda x: x.asDict())
+  upload_list = spark_dataframe.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
   
   return upload_list
 
