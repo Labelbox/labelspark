@@ -14,7 +14,7 @@ import json
 from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
 from pyspark.sql.functions import udf, lit
 
-def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, **kwargs):
+def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, context=sc, connector=spark, **kwargs):
   """ Creates a Labelbox dataset and creates data rows given a spark dataframe. Uploads data rows in batches of 10,000.
   Args:
       client                  :     labelbox.Client object
@@ -187,7 +187,13 @@ def create_data_row_uploads(spark_dataframe):
       "metadata_fields" : pyspark_row.uploads.metadata_fields
     }
   
-  return spark_dataframe.select("uploads").rdd.map(lambda x: x.uploads.asDict()).cache().collect()
+  list_of_values = spark_dataframe.select("uploads").cache().collect()
+  
+  rdd_list = sc.parallelize(list_of_values)
+  
+  upload_list = rdd_list.rdd.map(lambda x: x.asDict())
+  
+  return upload_list
 
 def connect_spark_metadata(client, spark_dataframe, lb_metadata_index):
   """ Checks to make sure all desired metadata for upload has a corresponding field in Labelbox. Note limits on metadata field options, here https://docs.labelbox.com/docs/limits
