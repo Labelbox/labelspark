@@ -14,6 +14,61 @@ import json
 from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
 from pyspark.sql.functions import udf, lit
 
+def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, **kwargs):
+  """ Creates a Labelbox dataset and creates data rows given a spark dataframe. Uploads data rows in batches of 10,000.
+  Args:
+      client                  :     labelbox.Client object
+      spark_dataframe         :     pyspark.sql.dataframe.Dataframe object - must have "row_data" and "external_id" columns at a minimum
+      dataset_name            :     Labelbox dataset name      
+      iam_integration (str)   :     IAM integreation to use when creating the Labelbox dataset
+      metadata_index          :     (Optional) Dictionary to add metadata to your data rows. Synatx is {key=column_name : value=metadata_type}
+                                          Metadata type is one of the following strings:
+                                              "enum"
+                                              "string"
+                                              "number"
+                                              "datetime"
+  """
+  lb_dataset = client.create_dataset(name=dataset_name, iam_integration=iam_integration, **kwargs)
+
+  if metadata_index:
+    conversion = {
+      "enum" : lb_metadata_type.enum,
+      "string" : lb_metadata_type.string,
+      "datetime" : lb_metadata_type.datetime,
+      "number" : lb_metadata_type.number
+    } 
+    lb_metadata_index = {}
+    for column_name in metadata_index.keys():
+      lb_metadata_index.update({column_name : conversion[metadata_index[column_name]]})
+    print("Connecting Metadata to Labelbox")
+  else:
+    lb_metadata_index = False
+  
+  # Connects Metadata
+  connect_spark_metadata(client, spark_dataframe, lb_metadata_index)    
+  
+  print("Dataset created in Labelbox.")
+  
+  uploads_spark_dataframe = create_uploads_column(pyspark_dataframe, client, metadata_index)
+  
+  uploads_list = create_data_row_uploads(uploads_spark_dataframe)
+  
+  print(f'Uploading {len(uploads_list)} to Labelbox in dataset with ID {lb_dataset.uid}')
+  
+  # Current limit for creating data rows in Labelox with metadata is 30,000
+  upload_batch_size = 10000
+  for i in range(o, len(uploads_list), upload_batch_size):
+    if i+upload_batch_size<=len(uploads_list):
+      batch = uploads_list[i:i+upload_batch_size]
+      print(f'Batch Number {int(1+(i/upload_batch_size))} with {len(batch)} data rows')
+    else:
+      batch = uploads_list[i:]
+      print(f'Batch {int(1+(i/upload_batch_size))}, {len(batch)} data rows')
+    task = lb_dataset.create_data_rows(batch)  
+    task.wait_till_done()  
+  
+  return lb_dataset
+
 def create_uploads_column(pyspark_dataframe, client, metadata_index=False):
   """ Creates a colum using the pyspark StructType class that consists of row_data, external_id, and metadata_fields if the `metadata_index` argument is provided
   Args:
@@ -126,40 +181,8 @@ def create_data_row_uploads(pyspark_dataframe):
       "external_id" : pyspark_row.uploads.external_id,
       "metadata_fields" : pyspark_row.uploads.metadata_fields
     }
+  
   return pyspark_dataframe.select("uploads").rdd.map(lambda x: x.uploads.asDict()).cache().collect()
-
-  def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, **kwargs):
-  """ Creates a Labelbox dataset and creates data rows given a spark dataframe
-  Args:
-      client                  :     labelbox.Client object
-      spark_dataframe         :     pyspark.sql.dataframe.Dataframe object - must have "row_data" and "external_id" columns at a minimum
-      dataset_name            :     Labelbox dataset name      
-      iam_integration (str)   :     IAM integreation to use when creating the Labelbox dataset
-      metadata_index          :     (Optional) Dictionary to add metadata to your data rows. Synatx is {key=column_name : value=metadata_type}
-                                          Metadata type is one of the following strings:
-                                              "enum"
-                                              "string"
-                                              "number"
-                                              "datetime"
-  """
-  lb_dataset = client.create_dataset(name=dataset_name, iam_integration=iam_integration, **kwargs)
-
-  if metadata_index:
-    conversion = {
-      "enum" : lb_metadata_type.enum,
-      "string" : lb_metadata_type.string,
-      "datetime" : lb_metadata_type.datetime,
-      "number" : lb_metadata_type.number
-    } 
-    lb_metadata_index = {}
-    for column_name in metadata_index.keys():
-      lb_metadata_index.update({column_name : conversion[metadata_index[column_name]]})
-  else:
-    lb_metadata_index = False
-
-  connect_spark_metadata(client, spark_dataframe, lb_metadata_index)
-  print("Dataset created in Labelbox.")
-  return lb_dataset
 
 def connect_spark_metadata(client, spark_dataframe, lb_metadata_index):
   """ Checks to make sure all desired metadata for upload has a corresponding field in Labelbox. Note limits on metadata field options, here https://docs.labelbox.com/docs/limits
