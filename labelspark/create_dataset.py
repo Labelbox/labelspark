@@ -1,4 +1,4 @@
-from labelbox.schema.data_row_metadata import DataRowMetadataKind as metadata_type
+from labelbox.schema.data_row_metadata import DataRowMetadataKind as lb_metadata_type
 from pyspark import SparkContext
 from packaging import version
 from datetime import datetime
@@ -49,15 +49,18 @@ def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), ia
   
   print("Dataset created in Labelbox.")
   
-  uploads_spark_dataframe = create_uploads_column(pyspark_dataframe, client, metadata_index)
+  uploads_spark_dataframe = create_uploads_column(spark_dataframe, client, metadata_index)
   
   uploads_list = create_data_row_uploads(uploads_spark_dataframe)
   
   print(f'Uploading {len(uploads_list)} to Labelbox in dataset with ID {lb_dataset.uid}')
   
   # Current limit for creating data rows in Labelox with metadata is 30,000
+  
+  starttime = datetime.now()
+  
   upload_batch_size = 10000
-  for i in range(o, len(uploads_list), upload_batch_size):
+  for i in range(0, len(uploads_list), upload_batch_size):
     if i+upload_batch_size<=len(uploads_list):
       batch = uploads_list[i:i+upload_batch_size]
       print(f'Batch Number {int(1+(i/upload_batch_size))} with {len(batch)} data rows')
@@ -66,17 +69,19 @@ def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), ia
       print(f'Batch {int(1+(i/upload_batch_size))}, {len(batch)} data rows')
     task = lb_dataset.create_data_rows(batch)  
     task.wait_till_done()  
+    print(f'Upload Time: {datetime.now()-starttime}')
+    starttime = datetime.now()
   
   return lb_dataset
 
-def create_uploads_column(pyspark_dataframe, client, metadata_index=False):
+def create_uploads_column(spark_dataframe, client, metadata_index=False):
   """ Creates a colum using the pyspark StructType class that consists of row_data, external_id, and metadata_fields if the `metadata_index` argument is provided
   Args:
       client                  :     labelbox.Client object
       spark_dataframe         :     pyspark.sql.dataframe.Dataframe object - must have "row_data" and "external_id" columns at a minimum 
       metadata_index          :     (Optional) Dictionary where {key=column_name : value=metadata_type} (where metadata_type is "enum", "number", "string" or "datetime"). If not provided, will not add metadata to the data row
   Returns:
-      pyspark_dataframe with an `uploads` column that can be converted to a Labelbox data row upload dictionary
+      spark_dataframe with an `uploads` column that can be converted to a Labelbox data row upload dictionary
   """
   # Grab the metadata ontology and create a dictionary where {key=metadata_name : value=metadata_feature_schema_id} or {key=metadata_name : value={"parent", "feature_schema_id"}} for enum metadata
   mdo = client.get_data_row_metadata_ontology()
@@ -102,7 +107,7 @@ def create_uploads_column(pyspark_dataframe, client, metadata_index=False):
   
   # Create an `uploads` column with row_data and external_id
   create_uploads_udf = udf(create_uploads, upload_schema)
-  df = pyspark_dataframe.withColumn('uploads', create_uploads_udf('row_data', 'external_id', lit(json.dumps(mdo_lookup))))
+  df = spark_dataframe.withColumn('uploads', create_uploads_udf('row_data', 'external_id', lit(json.dumps(mdo_lookup))))
   
   # Attach metadata to the `uploads` column if metadata_index argument is provided
   if metadata_index:
@@ -158,7 +163,7 @@ def attach_metadata(metadata_value, data_row, column_name, mdo_lookup_bytes, met
     })
   return data_row
 
-def create_data_row_uploads(pyspark_dataframe):
+def create_data_row_uploads(spark_dataframe):
   """ Function to-be-wrapped into a user-defined function
   Args:
       metadata_value          :     Value for the metadata field
@@ -182,7 +187,7 @@ def create_data_row_uploads(pyspark_dataframe):
       "metadata_fields" : pyspark_row.uploads.metadata_fields
     }
   
-  return pyspark_dataframe.select("uploads").rdd.map(lambda x: x.uploads.asDict()).cache().collect()
+  return spark_dataframe.select("uploads").rdd.map(lambda x: x.uploads.asDict()).cache().collect()
 
 def connect_spark_metadata(client, spark_dataframe, lb_metadata_index):
   """ Checks to make sure all desired metadata for upload has a corresponding field in Labelbox. Note limits on metadata field options, here https://docs.labelbox.com/docs/limits
