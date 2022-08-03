@@ -179,7 +179,8 @@ def create_data_row_uploads(spark_dataframe, sc):
       "metadata_fields" : pyspark_row.uploads.metadata_fields
     }
   
-  upload_list = spark_dataframe.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
+  upload_list_df = spark_dataframe.select("uploads") #trying to figure out where the bug is 
+  upload_list = upload_list_df.rdd.map(lambda x: x.uploads.asDict()).collect()
   
   return upload_list
 
