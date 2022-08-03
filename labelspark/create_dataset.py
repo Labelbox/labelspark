@@ -7,7 +7,7 @@ import json
 from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
 from pyspark.sql.functions import udf, lit
 
-def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, sc=sc, **kwargs):
+def create_dataset(sc, client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, **kwargs):
   """ Creates a Labelbox dataset and creates data rows given a spark dataframe. Uploads data rows in batches of 10,000.
   Args:
       client                  :     labelbox.Client object
