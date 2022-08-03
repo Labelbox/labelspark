@@ -10,7 +10,125 @@ else:
   import pyspark.pandas as pd
   needs_koalas = False  
 
-def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, **kwargs):
+import json
+from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
+from pyspark.sql.functions import udf, lit
+
+def create_uploads_column(pyspark_dataframe, client, metadata_index=False):
+  """ Creates a colum using the pyspark StructType class that consists of row_data, external_id, and metadata_fields if the `metadata_index` argument is provided
+  Args:
+      client                  :     labelbox.Client object
+      spark_dataframe         :     pyspark.sql.dataframe.Dataframe object - must have "row_data" and "external_id" columns at a minimum 
+      metadata_index          :     (Optional) Dictionary where {key=column_name : value=metadata_type} (where metadata_type is "enum", "number", "string" or "datetime"). If not provided, will not add metadata to the data row
+  Returns:
+      pyspark_dataframe with an `uploads` column that can be converted to a Labelbox data row upload dictionary
+  """
+  # Grab the metadata ontology and create a dictionary where {key=metadata_name : value=metadata_feature_schema_id} or {key=metadata_name : value={"parent", "feature_schema_id"}} for enum metadata
+  mdo = client.get_data_row_metadata_ontology()
+  metadata_dict = mdo.reserved_by_name
+  metadata_dict.update(mdo.custom_by_name)
+  mdo_lookup = {}
+  for name in metadata_dict:
+    if type(metadata_dict[name]) == dict:
+      for enum_option in metadata_dict[name]:
+        fsid = metadata_dict[name][enum_option].uid
+        parent = metadata_dict[name][enum_option].parent
+        mdo_lookup.update({str(enum_option) : {"feature_schema_id" : fsid, "parent" : parent}})
+    else:
+      fsid = metadata_dict[name].uid
+      mdo_lookup.update({name : fsid})
+  
+  # Specify the structure of the `uploads` column
+  upload_schema = StructType([
+    StructField("row_data", StringType()),
+    StructField("external_id", StringType()),
+    StructField("metadata_fields", ArrayType(MapType(StringType(), StringType(), True)))
+  ])
+  
+  # Create an `uploads` column with row_data and external_id
+  create_uploads_udf = udf(create_uploads, upload_schema)
+  df = pyspark_dataframe.withColumn('uploads', create_uploads_udf('row_data', 'external_id', lit(json.dumps(mdo_lookup))))
+  
+  # Attach metadata to the `uploads` column if metadata_index argument is provided
+  if metadata_index:
+    attach_metadata_udf = udf(attach_metadata, upload_schema)
+    for column_name in metadata_index:
+      df = df.withColumn('uploads', attach_metadata_udf(column_name, 'uploads', lit(column_name), lit(json.dumps(mdo_lookup)), lit(json.dumps(metadata_index))))
+    
+  return df
+
+def create_uploads(row_data, external_id, mdo_lookup_bytes):
+  """ Function to-be-wrapped into a user-defined function
+  Args:
+      row_data                :     row_data value
+      external_id             :     external_id value      
+      mdo_lookup_bytes        :     Bytearray representation of a dictionary where {key=column_name : value=metadata_type} (where metadata_type is "enum", "number", "string" or "datetime"). If not provided, will not add metadata to the data row
+  Returns:
+      Data row upload as-a-dictionary
+  """
+  mdo_lookup = json.loads(mdo_lookup_bytes)
+  return {
+    "row_data" : row_data,
+    "external_id" : external_id,
+    "metadata_fields" : [
+      {
+        "schema_id" : mdo_lookup["lb_integration_source"],
+        "value" : "Databricks"
+      }
+    ]
+  }
+
+def attach_metadata(metadata_value, data_row, column_name, mdo_lookup_bytes, metadata_index_bytes):
+  """ Function to-be-wrapped into a user-defined function
+  Args:
+      metadata_value          :     Value for the metadata field
+      data_row                :     Data row dictionary to add metadata fields to
+      column_name             :     Name of the column holding the metadata value
+      mdo_lookup_bytes        :     Bytearray representation of a dictionary where {key=metadata_name : value=metadata_feature_schema_id} or {key=metadata_name : value={"parent", "feature_schema_id"}} for enum metadata    
+      mdo_lookup_bytes        :     Bytearray representation of a dictionary where {key=metadata_name : value=metadata_feature_schema_id} or {key=metadata_name : value={"parent", "feature_schema_id"}} for enum metadata          
+  Returns:
+      Data row upload as-a-dictionary
+  """  
+  mdo_lookup = json.loads(mdo_lookup_bytes)
+  metadata_type = json.loads(metadata_index_bytes)[column_name]
+  if (metadata_type == "enum") and (metadata_value is not None):
+    data_row['metadata_fields'].append({
+      "schema_id" : mdo_lookup[str(metadata_value)]['parent'],
+      "value" : mdo_lookup[str(metadata_value)]['feature_schema_id']     
+    })
+  elif metadata_value is not None:
+    data_row['metadata_fields'].append({
+      "schema_id" : mdo_lookup[column_name],
+      "value" : metadata_value
+    })
+  return data_row
+
+def create_data_row_uploads(pyspark_dataframe):
+  """ Function to-be-wrapped into a user-defined function
+  Args:
+      metadata_value          :     Value for the metadata field
+      data_row                :     Data row dictionary to add metadata fields to
+      column_name             :     Name of the column holding the metadata values
+      mdo_lookup_bytes        :     Bytearray representation of a dictionary where {key=metadata_name : value=metadata_feature_schema_id} or {key=metadata_name : value={"parent", "feature_schema_id"}} for enum metadata    
+      mdo_lookup_bytes        :     Bytearray representation of a dictionary where {key=metadata_name : value=metadata_feature_schema_id} or {key=metadata_name : value={"parent", "feature_schema_id"}} for enum metadata          
+  Returns:
+      List of data row upload dictionaries as-a-dictionary
+  """  
+  def structure_data_row(pyspark_row):
+    """ Function to take pyspark StructType column and convert into an uploadable data row dictionary
+    Args:
+        pyspark_row             :     Row object from a pyspark dataframe
+    Returns:
+        Dictionary with "row_data", "external_id" and "metadata_fields" keys to-be-uploaded to Labelbox
+    """
+    return {
+      "row_data" : pyspark_row.uploads.row_data,
+      "external_id" : pyspark_row.uploads.external_id,
+      "metadata_fields" : pyspark_row.uploads.metadata_fields
+    }
+  return pyspark_dataframe.select("uploads").rdd.map(lambda x: x.uploads.asDict()).cache().collect()
+
+  def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, **kwargs):
   """ Creates a Labelbox dataset and creates data rows given a spark dataframe
   Args:
       client                  :     labelbox.Client object
@@ -28,25 +146,22 @@ def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), ia
 
   if metadata_index:
     conversion = {
-      "enum" : metadata_type.enum,
-      "string" : metadata_type.string,
-      "datetime" : metadata_type.datetime,
-      "number" : metadata_type.number
+      "enum" : lb_metadata_type.enum,
+      "string" : lb_metadata_type.string,
+      "datetime" : lb_metadata_type.datetime,
+      "number" : lb_metadata_type.number
     } 
-    labelbox_metadata_type_index = {}
+    lb_metadata_index = {}
     for column_name in metadata_index.keys():
-      labelbox_metadata_type_index.update({column_name : conversion[metadata_index[column_name]]})
+      lb_metadata_index.update({column_name : conversion[metadata_index[column_name]]})
   else:
-    labelbox_metadata_type_index = False
+    lb_metadata_index = False
 
-  connect_spark_metadata(client, spark_dataframe, labelbox_metadata_type_index)
-  data_row_upload = create_spark_data_rows(client, spark_dataframe, labelbox_metadata_type_index)
-  upload_task = lb_dataset.create_data_rows(data_row_upload)
-  upload_task.wait_till_done()
+  connect_spark_metadata(client, spark_dataframe, lb_metadata_index)
   print("Dataset created in Labelbox.")
   return lb_dataset
 
-def connect_spark_metadata(client, spark_dataframe, labelbox_metadata_type_index):
+def connect_spark_metadata(client, spark_dataframe, lb_metadata_index):
   """ Checks to make sure all desired metadata for upload has a corresponding field in Labelbox. Note limits on metadata field options, here https://docs.labelbox.com/docs/limits
   Args:
     client                          :    labelbox.Client object
@@ -55,24 +170,19 @@ def connect_spark_metadata(client, spark_dataframe, labelbox_metadata_type_index
   Returns:
     Nothing - the metadata ontology has been updated
   """
-  mdo = client.get_data_row_metadata_ontology()
-  mdo_dict = mdo._get_ontology()
-  labelbox_metadata_names = [field['name'] for field in mdo_dict]
-  if labelbox_metadata_type_index:
-    spark_metadata_names = list(labelbox_metadata_type_index.keys())
+  if lb_metadata_index:
+    spark_metadata_names = list(lb_metadata_index.keys())
     for spark_metadata_name in spark_metadata_names:
+      mdo = client.get_data_row_metadata_ontology()
+      labelbox_metadata_names = [field['name'] for field in mdo._get_ontology()]
       if spark_metadata_name not in labelbox_metadata_names:
-        ## If the metadata field isn't present in Labelbox, create it and refresh the object
-        labelbox_metadata_type = labelbox_metadata_type_index[spark_metadata_name]
-        create_metadata_field(mdo, spark_dataframe, spark_metadata_name, labelbox_metadata_type)
-        mdo.refresh_ontology()
-        mdo_dict = mdo._get_ontology()
-        labelbox_metadata_names = [field['name'] for field in mdo_dict]
+        metadata_type = lb_metadata_index[spark_metadata_name]
+        create_metadata_field(mdo, spark_dataframe, spark_metadata_name, metadata_type)
   if "lb_integration_source" not in labelbox_metadata_names:
-      labelbox_metadata_type = metadata_type.string
-      create_metadata_field(mdo, spark_dataframe, "lb_integration_source", labelbox_metadata_type)
+      metadata_type = lb_metadata_type.string
+      create_metadata_field(mdo, spark_dataframe, "lb_integration_source", metadata_type)
 
-def create_metadata_field(metadata_ontology_object, spark_dataframe, spark_metadata_name, labelbox_metadata_type):
+def create_metadata_field(metadata_ontology_object, spark_dataframe, spark_metadata_name, metadata_type):
   """ Given a metadata field name and a column, creates a metadata field in Laeblbox given a labelbox metadata type
   Args:
     metadata_ontology_object        :    labelbox.schema.data_row_metadata.DataRowMetadataOntology object
@@ -82,48 +192,8 @@ def create_metadata_field(metadata_ontology_object, spark_dataframe, spark_metad
   Returns:
     Nothing - the metadata ontology now has a new field can can be refreshed
   """
-  from labelbox.schema.data_row_metadata import DataRowMetadataKind as metadata_type
-  if labelbox_metadata_type == metadata_type.enum:
+  if metadata_type == lb_metadata_type.enum:
     enum_options = [str(x.__getitem__(spark_metadata_name)) for x in spark_dataframe.select(spark_metadata_name).distinct().collect()]
   else:
     enum_options = None
-  metadata_ontology_object.create_schema(name=spark_metadata_name, kind=labelbox_metadata_type, options=enum_options)  
-
-def create_spark_data_rows(client, spark_dataframe, labelbox_metadata_type_index):
-  """ Creates data rows given a spark table and an index that assigns a metadata type to a column name
-  Args:
-    client                          :    labelbox.Client object
-    spark_dataframe                 :    pyspark.sql.dataframe.Dataframe object
-    labelbox_metadata_type_index    :    Dictionary where key = column name and value = one of the enum options from labelbox.schema.data_row_metadata.DataRowMetadataKind class
-  Returns:
-    List of data row dictionaries to-be-uploaded
-  """
-  data_rows_upload = []
-  mdo = client.get_data_row_metadata_ontology()
-  metadata_dict = mdo.reserved_by_name
-  metadata_dict.update(mdo.custom_by_name)
-  for row in spark_dataframe.collect():
-    data_row_dict = {
-      "row_data" : row.__getitem__("row_data"),
-      "external_id" : row.__getitem__("external_id")
-    }
-    data_row_dict['metadata_fields'] = []
-    if labelbox_metadata_type_index:
-      for medata_field in labelbox_metadata_type_index:
-        if labelbox_metadata_type_index[medata_field] == metadata_type.enum:
-          enum_value = metadata_dict[medata_field][str(row.__getitem__(medata_field))]
-          data_row_dict['metadata_fields'].append({
-            "schema_id" : enum_value.parent,
-            "value" : enum_value.uid        
-          })
-        elif row.__getitem__(medata_field) is not None:
-          data_row_dict['metadata_fields'].append({
-            "schema_id" : metadata_dict[medata_field].uid,
-            "value" : str(row.__getitem__(medata_field)) 
-          })
-    data_row_dict['metadata_fields'].append({
-      "schema_id" : metadata_dict["lb_integration_source"].uid,
-      "value" : "Databricks"
-    })
-    data_rows_upload.append(data_row_dict)
-  return data_rows_upload
+  metadata_ontology_object.create_schema(name=spark_metadata_name, kind=metadata_type, options=enum_options)  
