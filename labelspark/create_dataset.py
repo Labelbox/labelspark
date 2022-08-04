@@ -180,7 +180,8 @@ def create_data_row_uploads(spark_dataframe, sc, spark):
     }
   
   upload_list_df = spark_dataframe.select("uploads")
-  upload_list = upload_list_df.rdd.map(lambda x: x.uploads.asDict()).collect() 
+  upload_list = upload_list_df.rdd.map(lambda row: row.asDict())
+  upload_list = upload_list.collect()
   
   return upload_list
 
