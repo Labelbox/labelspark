@@ -1,6 +1,7 @@
 from labelbox.schema.data_row_metadata import DataRowMetadataKind as lb_metadata_type
 from packaging import version
 from datetime import datetime
+from pyspark.sql import SparkSession
 
 import json
 from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
