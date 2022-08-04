@@ -6,7 +6,7 @@ import json
 from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
 from pyspark.sql.functions import udf, lit
 
-def create_dataset(sc, client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, **kwargs):
+def create_dataset(sc, spark, client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, **kwargs):
   """ Creates a Labelbox dataset and creates data rows given a spark dataframe. Uploads data rows in batches of 10,000.
   Args:
       client                  :     labelbox.Client object
@@ -43,7 +43,7 @@ def create_dataset(sc, client, spark_dataframe, dataset_name=str(datetime.now())
   
   uploads_spark_dataframe = create_uploads_column(spark_dataframe, client, metadata_index)
   
-  uploads_list = create_data_row_uploads(uploads_spark_dataframe, sc)
+  uploads_list = create_data_row_uploads(uploads_spark_dataframe, sc, spark)
   
   print(f'Uploading {len(uploads_list)} to Labelbox in dataset with ID {lb_dataset.uid}')
   
@@ -155,7 +155,7 @@ def attach_metadata(metadata_value, data_row, column_name, mdo_lookup_bytes, met
     })
   return data_row
 
-def create_data_row_uploads(spark_dataframe, sc):
+def create_data_row_uploads(spark_dataframe, sc, spark):
   """ Function to-be-wrapped into a user-defined function
   Args:
       metadata_value          :     Value for the metadata field
@@ -179,8 +179,8 @@ def create_data_row_uploads(spark_dataframe, sc):
       "metadata_fields" : pyspark_row.uploads.metadata_fields
     }
   
-  upload_list_df = spark_dataframe.select("uploads") #trying to figure out where the bug is 
-  upload_list = upload_list_df.rdd.map(lambda x: x.uploads.asDict()).collect()
+  upload_list_df = spark_dataframe.select("uploads")
+  upload_list = upload_list_df.rdd.map(lambda x: x.uploads.asDict()).collect() 
   
   return upload_list
 
