@@ -62,6 +62,7 @@ def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), ia
     else:
       batch = uploads_list[i:]
       print(f'Batch {int(1+(i/upload_batch_size))}, {len(batch)} data rows')
+      print(batch) #DEBUG
     task = lb_dataset.create_data_rows(batch)  
     task.wait_till_done()  
     print(f'Upload Time: {datetime.now()-starttime}')
