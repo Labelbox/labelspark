@@ -180,7 +180,8 @@ def create_data_row_uploads(spark_dataframe, sc, spark):
       "metadata_fields" : pyspark_row.uploads.metadata_fields
     }
   
-  SparkSession.getActiveSession() #trying different things to guarantee we aren't trying to create new stuff on executors
+  print(sc) #what is the spark context 
+  print(spark)
   upload_list_df = spark_dataframe.select("uploads")
   upload_list = upload_list_df.rdd.map(lambda row: row.asDict())
   upload_list = upload_list.collect()
