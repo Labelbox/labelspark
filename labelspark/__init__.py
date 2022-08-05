@@ -9,3 +9,4 @@ from .get_videoframe_annotations import get_videoframe_annotations
 from .is_json import is_json
 from .jsonToDataFrame import jsonToDataFrame
 from .spark_schema_to_string import spark_schema_to_string
+from .dictionary_collector import dictionary_collector
