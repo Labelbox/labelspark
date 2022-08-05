@@ -7,7 +7,7 @@ import json
 from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
 from pyspark.sql.functions import udf, lit
 
-def create_dataset(sc, spark, client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, **kwargs):
+def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, **kwargs):
   """ Creates a Labelbox dataset and creates data rows given a spark dataframe. Uploads data rows in batches of 10,000.
   Args:
       client                  :     labelbox.Client object
@@ -44,7 +44,7 @@ def create_dataset(sc, spark, client, spark_dataframe, dataset_name=str(datetime
   
   uploads_spark_dataframe = create_uploads_column(spark_dataframe, client, metadata_index)
   
-  uploads_list = create_data_row_uploads(uploads_spark_dataframe, sc, spark)
+  uploads_list = create_data_row_uploads(uploads_spark_dataframe)
   
   print(f'Uploading {len(uploads_list)} to Labelbox in dataset with ID {lb_dataset.uid}')
   
@@ -156,7 +156,7 @@ def attach_metadata(metadata_value, data_row, column_name, mdo_lookup_bytes, met
     })
   return data_row
 
-def create_data_row_uploads(spark_dataframe, sc, spark):
+def create_data_row_uploads(spark_dataframe):
   """ Function to-be-wrapped into a user-defined function
   Args:
       metadata_value          :     Value for the metadata field
@@ -180,13 +180,15 @@ def create_data_row_uploads(spark_dataframe, sc, spark):
       "metadata_fields" : pyspark_row.uploads.metadata_fields
     }
   
-  print(spark)
   upload_list_df = spark_dataframe.select("uploads")
-  print(upload_list_df.sql_ctx.sparkSession)
-  upload_list = upload_list_df.rdd.map(lambda row: row.asDict())
+  upload_list = upload_list_df.rdd.map(lambda row: return_as_dict(row))
   upload_list = upload_list.collect()
   
   return upload_list
+
+  #trying to see if this fixes it 
+  def return_as_dict(row_object):
+    return row_object.asDict()
 
 def connect_spark_metadata(client, spark_dataframe, lb_metadata_index):
   """ Checks to make sure all desired metadata for upload has a corresponding field in Labelbox. Note limits on metadata field options, here https://docs.labelbox.com/docs/limits
