@@ -183,8 +183,8 @@ def create_data_row_uploads(spark_dataframe):
     }
   
   upload_list_df = spark_dataframe.select("uploads")
-  my_collector = dictionary_collector()
-  upload_list = upload_list_df.rdd.map(lambda row: my_collector.return_as_dict(row)).collect()
+ # my_collector = dictionary_collector()
+  upload_list = upload_list_df.rdd.map(lambda row: row.asDict()).collect()
   
   return upload_list
 
