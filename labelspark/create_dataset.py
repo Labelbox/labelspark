@@ -44,7 +44,7 @@ def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), ia
   
   uploads_spark_dataframe = create_uploads_column(spark_dataframe, client, metadata_index)
   
-  pandas_df = uploads_spark_dataframe.to_pandas()
+  pandas_df = uploads_spark_dataframe.to_pandas_on_spark()
   
   upload_batch_size = 10000
   
