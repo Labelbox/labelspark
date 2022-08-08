@@ -53,7 +53,7 @@ def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), ia
   print(f'Uploading {len(pandas_df)} to Labelbox in dataset with ID {lb_dataset.uid}')
   
   for i in range(0, len(pandas_df), upload_batch_size):
-    if i+upload_batch_size<=len(uploads_list):
+    if i+upload_batch_size<=len(pandas_df):
       batch_df = pandas_df.iloc[i:i+upload_batch_size]
     else:
       batch_df = pandas_df.iloc[i:]
