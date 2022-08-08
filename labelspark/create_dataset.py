@@ -59,7 +59,7 @@ def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), ia
       batch_df = pandas_df.iloc[i:]
     print(f'Batch Number {int(1+(i/upload_batch_size))} with {len(batch_df)} data rows')
     batch_upload = create_data_row_uploads(batch_df.to_spark())
-    task = lb_dataset.create_data_rows(batch)
+    task = lb_dataset.create_data_rows(batch_upload)
     task.wait_till_done() 
     print(f'Upload Time: {datetime.now()-starttime}')
     starttime = datetime.now()
