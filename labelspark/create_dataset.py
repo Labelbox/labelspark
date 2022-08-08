@@ -1,15 +1,14 @@
 from labelbox.schema.data_row_metadata import DataRowMetadataKind as lb_metadata_type
+from pyspark import SparkContext
 from packaging import version
 from datetime import datetime
-from pyspark.sql import SparkSession
+import databricks.koalas as ks
 
 import json
 from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
 from pyspark.sql.functions import udf, lit
 
-from labelspark.dictionary_collector import dictionary_collector
-
-def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, **kwargs):
+def create_dataset(sc, client, spark_dataframe, dataset_name=str(datetime.now()), iam_integration='DEFAULT', metadata_index=False, **kwargs):
   """ Creates a Labelbox dataset and creates data rows given a spark dataframe. Uploads data rows in batches of 10,000.
   Args:
       client                  :     labelbox.Client object
@@ -46,24 +45,23 @@ def create_dataset(client, spark_dataframe, dataset_name=str(datetime.now()), ia
   
   uploads_spark_dataframe = create_uploads_column(spark_dataframe, client, metadata_index)
   
-  uploads_list = create_data_row_uploads(uploads_spark_dataframe)
+  pandas_df = uploads_spark_dataframe.to_pandas()
   
-  print(f'Uploading {len(uploads_list)} to Labelbox in dataset with ID {lb_dataset.uid}')
-  
-  # Current limit for creating data rows in Labelox with metadata is 30,000
+  upload_batch_size = 10000
   
   starttime = datetime.now()
   
-  upload_batch_size = 10000
-  for i in range(0, len(uploads_list), upload_batch_size):
+  print(f'Uploading {len(pandas_df)} to Labelbox in dataset with ID {lb_dataset.uid}')
+  
+  for i in range(0, len(pandas_df), upload_batch_size):
     if i+upload_batch_size<=len(uploads_list):
-      batch = uploads_list[i:i+upload_batch_size]
-      print(f'Batch Number {int(1+(i/upload_batch_size))} with {len(batch)} data rows')
+      batch_df = pandas_df.iloc[i:i+upload_batch_size]
     else:
-      batch = uploads_list[i:]
-      print(f'Batch {int(1+(i/upload_batch_size))}, {len(batch)} data rows')
-    task = lb_dataset.create_data_rows(batch)  
-    task.wait_till_done()  
+      batch_df = pandas_df.iloc[i:]
+    print(f'Batch Number {int(1+(i/upload_batch_size))} with {len(batch_df)} data rows')
+    batch_upload = create_data_row_uploads(batch_df.to_spark())
+    task = lb_dataset.create_data_rows(batch)
+    task.wait_till_done() 
     print(f'Upload Time: {datetime.now()-starttime}')
     starttime = datetime.now()
   
@@ -182,11 +180,9 @@ def create_data_row_uploads(spark_dataframe):
       "metadata_fields" : pyspark_row.uploads.metadata_fields
     }
   
-  upload_list_df = spark_dataframe.select("uploads")
-  upload_list = upload_list_df.rdd.map(lambda row: row.uploads.asDict()).collect()
+  upload_list = spark_dataframe.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
   
   return upload_list
-
 
 def connect_spark_metadata(client, spark_dataframe, lb_metadata_index):
   """ Checks to make sure all desired metadata for upload has a corresponding field in Labelbox. Note limits on metadata field options, here https://docs.labelbox.com/docs/limits
