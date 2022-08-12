@@ -151,7 +151,7 @@ def attach_metadata(metadata_value, data_row, column_name, mdo_lookup_bytes, met
   elif metadata_value is not None:
     data_row['metadata_fields'].append({
       "schema_id" : mdo_lookup[column_name],
-      "value" : metadata_value
+      "value" : str(metadata_value)
     })
   return data_row
 
