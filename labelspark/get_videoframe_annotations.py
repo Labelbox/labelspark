@@ -4,13 +4,13 @@ import json
 #this code block is needed for backwards compatibility with older Spark versions
 from pyspark import SparkContext
 from packaging import version
-sc = SparkContext.getOrCreate()
-if version.parse(sc.version) < version.parse("3.2.0"):
-  import databricks.koalas as pd
-  needs_koalas = True
-else:
-  import pyspark.pandas as pd
-  needs_koalas = False
+# sc = SparkContext.getOrCreate()
+# if version.parse(sc.version) < version.parse("3.2.0"):
+#   import databricks.koalas as pd
+#   needs_koalas = True
+# else:
+import pyspark.pandas as pd
+needs_koalas = False
 
 from labelspark.jsonToDataFrame import jsonToDataFrame
 
