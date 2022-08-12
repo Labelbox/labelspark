@@ -192,11 +192,14 @@ def connect_spark_metadata(client, spark_dataframe, lb_metadata_index):
   Returns:
     Nothing - the metadata ontology has been updated
   """
+  mdo = client.get_data_row_metadata_ontology() #query Labelbox for metadata fields 
+  labelbox_metadata_names = [field['name'] for field in mdo._get_ontology()] #produce list of all metadata names in ontology
+  
   if lb_metadata_index:
     spark_metadata_names = list(lb_metadata_index.keys())
     for spark_metadata_name in spark_metadata_names:
-      mdo = client.get_data_row_metadata_ontology()
-      labelbox_metadata_names = [field['name'] for field in mdo._get_ontology()]
+#       mdo = client.get_data_row_metadata_ontology()
+#       labelbox_metadata_names = [field['name'] for field in mdo._get_ontology()]
       if spark_metadata_name not in labelbox_metadata_names:
         metadata_type = lb_metadata_index[spark_metadata_name]
         create_metadata_field(mdo, spark_dataframe, spark_metadata_name, metadata_type)
