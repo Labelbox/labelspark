@@ -204,12 +204,12 @@ def batch_upload_data_rows(lb_dataset, pandas_df, upload_batch_size=10000):
 
 # Attach data row IDs
 def attach_data_row_ids(lb_dataset, spark_dataframe):
-  """ UDF to add data row IDs to a dataframe given external_id and relevant labelbox dataset
+  """ UDF to add data row IDs to a dataframe given external_id and relevant labelbox dataset. Assumption is that external_id is unique
   Args:  
     spark_dataframe           :     pyspark.sql.dataframe.Dataframe object - must have "external_id" column
     lb_dataset                :     labelbox.schema.dataset.Dataset object
   Returns:
-    
+    pyspark dataframe with a completed data_row_id column filled in
   """
   external_id_to_data_row_id = {}
   data_rows = lb_dataset.export_data_rows()
