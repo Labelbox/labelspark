@@ -21,8 +21,8 @@ def create_labelbox_dataset(client, spark_dataframe, dataset_name=str(datetime.d
                                               "number"
                                               "datetime"
   Returns:
-    spark_dataframe         :     updated spark_dataframe
-    lb_dataset              :     labelbox.schema.dataset.Dataset object
+    spark_dataframe           :     updated spark_dataframe
+    lb_dataset                :     labelbox.schema.dataset.Dataset object
   """
   lb_dataset = client.create_dataset(name=dataset_name, iam_integration=iam_integration, **kwargs)
   connect_spark_metadata(client, spark_dataframe, metadata_index) 
@@ -35,16 +35,17 @@ def create_labelbox_dataset(client, spark_dataframe, dataset_name=str(datetime.d
   lb_dataset = batch_upload_data_rows(lb_dataset, pandas_df)
   # Adds a data_row_id column to your dataframe
   if add_data_row_ids:
+    print(f'Attaching Laeblbox Data Row IDs to Spark Table')
     spark_dataframe = attach_data_row_ids(lb_dataset, spark_dataframe)
   return lb_dataset, spark_dataframe
 
 ### Connect Spark Metadata
 def connect_spark_metadata(client, spark_dataframe, metadata_index):
   """ Checks to make sure all desired metadata for upload has a corresponding field in Labelbox. Note limits on metadata field options, here https://docs.labelbox.com/docs/limits
-  Args:
-    client                          :    labelbox.Client object
-    spark_dataframe                 :    pyspark.sql.dataframe.Dataframe object
-    metadata_index                  :    Dictionary to add metadata to your data rows. Synatx is {key=column_name : value=either "enum", "string", "number" or "datetime"}
+  Args:  
+    client                    :    labelbox.Client object
+    spark_dataframe           :    pyspark.sql.dataframe.Dataframe object
+    metadata_index            :    Dictionary to add metadata to your data rows. Synatx is {key=column_name : value=either "enum", "string", "number" or "datetime"}
   Returns:
     Nothing - the metadata ontology has been updated
   """
@@ -75,10 +76,10 @@ def connect_spark_metadata(client, spark_dataframe, metadata_index):
 def create_metadata_field(metadata_ontology_object, spark_dataframe, spark_metadata_name, metadata_type):
   """ Given a metadata field name and a column, creates a metadata field in Laeblbox given a labelbox metadata type
   Args:
-    metadata_ontology_object        :    labelbox.schema.data_row_metadata.DataRowMetadataOntology object
-    spark_dataframe                 :    pyspark.sql.dataframe.Dataframe object
-    spark_metadata_name             :    Name of the column in the pyspark table to-be-converted into a metadata field
-    labelbox_metadata_type          :    labelbox.schema.data_row_metadata.DataRowMetadataKind object
+    metadata_ontology_object  :    labelbox.schema.data_row_metadata.DataRowMetadataOntology object
+    spark_dataframe           :    pyspark.sql.dataframe.Dataframe object
+    spark_metadata_name       :    Name of the column in the pyspark table to-be-converted into a metadata field
+    labelbox_metadata_type    :    labelbox.schema.data_row_metadata.DataRowMetadataKind object
   Returns:
     Nothing - the metadata ontology now has a new field can can be refreshed
   """
@@ -135,7 +136,7 @@ def create_uploads(row_data, external_id, mdo_lookup_bytes):
   Args:
       row_data                :     row_data value
       external_id             :     external_id value      
-      mdo_lookup_bytes        :     Bytearray representation of a dictionary where {key=column_name : value=metadata_type} (where metadata_type is "enum", "number", "string" or "datetime"). If not provided, will not add metadata to the data row
+      mdo_lookup_bytes        :     Bytearray representation of a dictionary where {key=metadata_name : value=metadata_feature_schema_id or value={"parent", "feature_schema_id"}} for enum metadata    
   Returns:
       Data row upload as-a-dictionary
   """
@@ -158,8 +159,8 @@ def attach_metadata(metadata_value, data_row, column_name, mdo_lookup_bytes, met
       metadata_value          :     Value for the metadata field
       data_row                :     Data row dictionary to add metadata fields to
       column_name             :     Name of the column holding the metadata value
-      mdo_lookup_bytes        :     Bytearray representation of a dictionary where {key=metadata_name : value=metadata_feature_schema_id} or {key=metadata_name : value={"parent", "feature_schema_id"}} for enum metadata    
-      mdo_lookup_bytes        :     Bytearray representation of a dictionary where {key=metadata_name : value=metadata_feature_schema_id} or {key=metadata_name : value={"parent", "feature_schema_id"}} for enum metadata          
+      mdo_lookup_bytes        :     Bytearray representation of a dictionary where {key=metadata_name : value=metadata_feature_schema_id or value={"parent", "feature_schema_id"}} for enum metadata    
+      metadata_index_bytes    :     Bytearray representation of a dictionary where {key=metadata_name : value=metadata_type as string}
   Returns:
       Data row upload as-a-dictionary
   """  
@@ -180,9 +181,9 @@ def attach_metadata(metadata_value, data_row, column_name, mdo_lookup_bytes, met
 # Batch Upload Data Rows
 def batch_upload_data_rows(lb_dataset, pandas_df, upload_batch_size=10000):
   """ Batch Uploads Data Row IDs given a list of uploads and a batch size
-  Args:
-    pandas_df         :  spark_dataframe.to_pandas_on_spark()
-    upload_batch_size :  Maximum is 30,000 if there's metadata on data rows
+  Args: 
+    pandas_df                 :     pyspark.pandas.frame.DataFrame version of the working pyspark dataframe
+    upload_batch_size         :     Integer - Maximum is 30,000 if there's metadata on data rows
   Returns:
     updated Labelbox dataset DB Object
   """
@@ -193,31 +194,20 @@ def batch_upload_data_rows(lb_dataset, pandas_df, upload_batch_size=10000):
     else:
       batch_df = pandas_df.iloc[i:]
     print(f'Batch Number {int(1+(i/upload_batch_size))} with {len(batch_df)} data rows')
-    batch_upload = batch_df.to_spark().select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
+    batch_spark_df = batch_df.to_spark()
+    batch_upload = batch_spark_df.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
     task = lb_dataset.create_data_rows(batch_upload)
     task.wait_till_done() 
-    print(f'Upload Time: {datetime.datetime.now()-starttime}')
+    print(f'Upload Speed: {datetime.datetime.now()-starttime}')
     starttime = datetime.datetime.now()    
   return lb_dataset
 
-# Add data row IDs to your dataframe
-def find_data_row_id(external_id, reference):
-  """ Nested UDF Functionality to return a data row ID given the external ID
-  Args:
-    external_id     :      Data Row external ID as a string
-    reference       :      dictionary where {key=external_id : value=data_row_id}
-  Returns:
-    Data Row ID value
-  """
-  reference_dict = json.loads(reference)
-  data_row_id = reference_dict[external_id]
-  return data_row_id
-
+# Attach data row IDs
 def attach_data_row_ids(lb_dataset, spark_dataframe):
   """ UDF to add data row IDs to a dataframe given external_id and relevant labelbox dataset
-  Args:
-      spark_dataframe         :     pyspark.sql.dataframe.Dataframe object - must have "external_id" column
-      lb_dataset              :    
+  Args:  
+    spark_dataframe           :     pyspark.sql.dataframe.Dataframe object - must have "external_id" column
+    lb_dataset                :     labelbox.schema.dataset.Dataset object
   Returns:
     
   """
@@ -227,3 +217,16 @@ def attach_data_row_ids(lb_dataset, spark_dataframe):
     external_id_to_data_row_id.update({str(data_row.external_id) : str(data_row.uid)})
   find_data_row_id_udf = udf(find_data_row_id, StringType())
   return spark_dataframe.withColumn('data_row_id', find_data_row_id_udf("external_id", lit(json.dumps(external_id_to_data_row_id))))
+
+# Attach data row IDs
+def find_data_row_id(external_id, reference):
+  """ Nested UDF Functionality to return a data row ID given the external ID
+  Args:
+    external_id               :      Data Row external ID as a string
+    reference                 :      dictionary where {key=external_id : value=data_row_id}
+  Returns:
+    Data Row ID value
+  """
+  reference_dict = json.loads(reference)
+  data_row_id = reference_dict[external_id]
+  return data_row_id
