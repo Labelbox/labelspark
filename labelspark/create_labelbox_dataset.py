@@ -108,12 +108,18 @@ def create_uploads_column(spark_dataframe, client, metadata_index=False):
     # Catches Enum Metadata
     if type(metadata_dict[name]) == dict:
       for enum_option in metadata_dict[name]:
-        fsid = metadata_dict[name][enum_option].uid
-        parent = metadata_dict[name][enum_option].parent
-        mdo_lookup.update({str(enum_option) : {"feature_schema_id" : fsid, "parent" : parent}})
+        mdo_lookup.update({
+          str(enum_option) : {
+            "feature_schema_id" : metadata_dict[name][enum_option].uid, 
+            "parent" : metadata_dict[name][enum_option].parent
+          }
+        })
     else:
-      fsid = metadata_dict[name].uid
-      mdo_lookup.update({name : {"feature_schema_id" : fsid}})
+      mdo_lookup.update({
+        name : {
+          "feature_schema_id" : metadata_dict[name].uid
+        }
+      })
   # Specify the structure of the `uploads` column
   upload_schema = StructType([
     StructField("row_data", StringType()),
@@ -196,6 +202,7 @@ def batch_upload_data_rows(lb_dataset, pandas_df, upload_batch_size):
     print(f'Batch Number {int(1+(i/upload_batch_size))} with {len(batch_df)} data rows')
     batch_spark_df = batch_df.to_spark()
     batch_upload = batch_spark_df.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
+    print(batch_upload)
     task = lb_dataset.create_data_rows(batch_upload)
     task.wait_till_done() 
     print(f'Upload Speed: {datetime.datetime.now()-starttime}')
