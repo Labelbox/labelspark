@@ -199,6 +199,7 @@ def batch_upload_data_rows(lb_dataset, pandas_df, upload_batch_size=10000):
     task = lb_dataset.create_data_rows(batch_upload)
     task.wait_till_done() 
     print(f'Upload Speed: {datetime.datetime.now()-starttime}')
+    print(f'Errors: {task.errors}')
     starttime = datetime.datetime.now()    
   return lb_dataset
 
