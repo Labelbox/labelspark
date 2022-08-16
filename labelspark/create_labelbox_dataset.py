@@ -32,7 +32,7 @@ def create_labelbox_dataset(client, spark_dataframe, dataset_name=str(datetime.d
   # Batch uploads data rows
   pandas_df = spark_dataframe.to_pandas_on_spark()
   print(f'Uploading {len(pandas_df)} to Labelbox in dataset with ID {lb_dataset.uid}')
-  lb_dataset = batch_upload_data_rows(lb_dataset, pandas_df, 5)
+  lb_dataset = batch_upload_data_rows(lb_dataset, pandas_df, 10000)
   # Adds a data_row_id column to your dataframe
   if add_data_row_ids:
     print(f'Attaching Laeblbox Data Row IDs to Spark Table')
@@ -114,7 +114,6 @@ def create_uploads_column(spark_dataframe, client, metadata_index=False):
     else:
       fsid = metadata_dict[name].uid
       mdo_lookup.update({name : {"feature_schema_id" : fsid}})
-  print(mdo_lookup)
   # Specify the structure of the `uploads` column
   upload_schema = StructType([
     StructField("row_data", StringType()),
@@ -147,7 +146,7 @@ def create_uploads(row_data, external_id, mdo_lookup_bytes):
     "external_id" : external_id,
     "metadata_fields" : [
       {
-        "schema_id" : mdo_lookup["lb_integration_source"],
+        "schema_id" : mdo_lookup["lb_integration_source"]['feature_schema_id'],
         "value" : "Databricks"
       }
     ]
@@ -197,7 +196,6 @@ def batch_upload_data_rows(lb_dataset, pandas_df, upload_batch_size):
     print(f'Batch Number {int(1+(i/upload_batch_size))} with {len(batch_df)} data rows')
     batch_spark_df = batch_df.to_spark()
     batch_upload = batch_spark_df.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
-    print(batch_upload)
     task = lb_dataset.create_data_rows(batch_upload)
     task.wait_till_done() 
     print(f'Upload Speed: {datetime.datetime.now()-starttime}')
