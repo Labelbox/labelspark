@@ -114,6 +114,7 @@ def create_uploads_column(spark_dataframe, client, metadata_index=False):
     else:
       fsid = metadata_dict[name].uid
       mdo_lookup.update({name : fsid})
+  print(mdo_lookup)
   # Specify the structure of the `uploads` column
   upload_schema = StructType([
     StructField("row_data", StringType()),
