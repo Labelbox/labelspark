@@ -113,7 +113,7 @@ def create_uploads_column(spark_dataframe, client, metadata_index=False):
         mdo_lookup.update({str(enum_option) : {"feature_schema_id" : fsid, "parent" : parent}})
     else:
       fsid = metadata_dict[name].uid
-      mdo_lookup.update({name : fsid})
+      mdo_lookup.update({name : {"feature_schema_id" : fsid})
   print(mdo_lookup)
   # Specify the structure of the `uploads` column
   upload_schema = StructType([
@@ -174,7 +174,7 @@ def attach_metadata(metadata_value, data_row, column_name, mdo_lookup_bytes, met
     })
   elif (metadata_value is not None) or (str(metadata_value) != ""):
     data_row['metadata_fields'].append({
-      "schema_id" : mdo_lookup[column_name],
+      "schema_id" : mdo_lookup[column_name]['feature_schema_id'],
       "value" : str(metadata_value)
     })
   return data_row  
