@@ -121,6 +121,7 @@ def create_uploads_column(spark_dataframe, client, metadata_index=False):
     StructField("metadata_fields", ArrayType(MapType(StringType(), StringType(), True)))
   ])
   # Create an `uploads` column with row_data and external_id
+  print(mdo_lookup)
   create_uploads_udf = udf(create_uploads, upload_schema)
   df = spark_dataframe.withColumn('uploads', create_uploads_udf('row_data', 'external_id', lit(json.dumps(mdo_lookup))))
   # Attach metadata to the `uploads` column if metadata_index argument is provided
