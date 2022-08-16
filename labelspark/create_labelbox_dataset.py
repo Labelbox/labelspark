@@ -32,7 +32,7 @@ def create_labelbox_dataset(client, spark_dataframe, dataset_name=str(datetime.d
   # Batch uploads data rows
   pandas_df = spark_dataframe.to_pandas_on_spark()
   print(f'Uploading {len(pandas_df)} to Labelbox in dataset with ID {lb_dataset.uid}')
-  lb_dataset = batch_upload_data_rows(lb_dataset, pandas_df)
+  lb_dataset = batch_upload_data_rows(lb_dataset, pandas_df, 5)
   # Adds a data_row_id column to your dataframe
   if add_data_row_ids:
     print(f'Attaching Laeblbox Data Row IDs to Spark Table')
@@ -180,7 +180,7 @@ def attach_metadata(metadata_value, data_row, column_name, mdo_lookup_bytes, met
   return data_row  
 
 # Batch Upload Data Rows
-def batch_upload_data_rows(lb_dataset, pandas_df, upload_batch_size=10000):
+def batch_upload_data_rows(lb_dataset, pandas_df, upload_batch_size):
   """ Batch Uploads Data Row IDs given a list of uploads and a batch size
   Args: 
     pandas_df                 :     pyspark.pandas.frame.DataFrame version of the working pyspark dataframe
@@ -197,6 +197,7 @@ def batch_upload_data_rows(lb_dataset, pandas_df, upload_batch_size=10000):
     print(f'Batch Number {int(1+(i/upload_batch_size))} with {len(batch_df)} data rows')
     batch_spark_df = batch_df.to_spark()
     batch_upload = batch_spark_df.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
+    print(batch_upload)
     task = lb_dataset.create_data_rows(batch_upload)
     task.wait_till_done() 
     print(f'Upload Speed: {datetime.datetime.now()-starttime}')
