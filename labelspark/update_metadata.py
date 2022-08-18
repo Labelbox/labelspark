@@ -21,11 +21,11 @@ def update_metadata(client, spark_dataframe, metadata_field_name, lb_dataset):
 
     update_dict = {}
     for data_row in data_row_metadata:
-    key = data_row.data_row_id
-    for field in data_row.fields:
-        if field.schema_id == metadata_field_schema_id:
-            value = field.value
-            update_dict[key] = value  
+        key = data_row.data_row_id
+        for field in data_row.fields:
+            if field.schema_id == metadata_field_schema_id:
+                value = field.value
+                update_dict[key] = value  
 
     sync_udf = udf(sync_function, StringType())
 
