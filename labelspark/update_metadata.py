@@ -27,22 +27,22 @@ def update_metadata(client, spark_dataframe, metadata_field_name, lb_dataset):
                 value = field.value
                 update_dict[key] = value  
 
+    def sync_function(update_dict, data_row_id, current_metadata_value):
+        """ Nested UDF Functionality update metadata in Labelbox and in the pyspark dataframe
+        Args:  
+            update_dict                 :      Dictionary where {key=data_row_id and value=latest_metadata_value}
+            data_row_id                 :      Labelbox Data Row ID
+            current_metadata_value      :      The existing value for this metadata field in the spark_dataframe
+        Returns:
+            New value to-be-inserted in the column corresponding to this metadata field
+        """  
+        reference_dict = json.loads(update_dict)
+        if data_row_id in reference_dict.keys():
+            return_value = reference_dict[data_row_id]
+        else:
+            return_value = current_metadata_value
+        return return_value                
+                
     sync_udf = udf(sync_function, StringType())
 
     return spark_dataframe.withColumn(metadata_field_name, sync_udf(lit(json.dumps(update_dict)), "data_row_id", metadata_field_name))
-  
-def sync_function(update_dict, data_row_id, current_metadata_value):
-    """ Nested UDF Functionality update metadata in Labelbox and in the pyspark dataframe
-    Args:  
-        update_dict                 :      Dictionary where {key=data_row_id and value=latest_metadata_value}
-        data_row_id                 :      Labelbox Data Row ID
-        current_metadata_value      :      The existing value for this metadata field in the spark_dataframe
-    Returns:
-        New value to-be-inserted in the column corresponding to this metadata field
-    """  
-    reference_dict = json.loads(update_dict)
-    if data_row_id in reference_dict.keys():
-        return_value = reference_dict[data_row_id]
-    else:
-        return_value = current_metadata_value
-    return return_value
