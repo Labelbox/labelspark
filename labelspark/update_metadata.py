@@ -3,11 +3,14 @@ from pyspark.sql.types import StringType
 import json
 
 def update_metadata(client, spark_dataframe, metadata_field_name, lb_dataset):
-    """
+    """ Updates a spark dataframe with the current Labelbox metadata value given a metadata field name
+    Args:
         client                      :       labelbox.Client object
         spark_dataframe             :       pyspark.sql.dataframe.Dataframe object - must have "data_row_id" and metadata_field_name columns at a minimum
         metadata_field_name         :       Name of the column in the spark_dataframe to-be-updated. This must also be the name of the metadata field in Labelbox
         lb_dataset                  :       labelbox.schema.dataset.Dataset object that hosts the data row IDs in question
+    Returns:
+        Updated spark_dataframe
     """
 
     mdo = client.get_data_row_metadata_ontology()
