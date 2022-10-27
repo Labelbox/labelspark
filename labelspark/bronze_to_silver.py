@@ -1,8 +1,10 @@
 #this code block is needed for backwards compatibility with older Spark versions
 from pyspark import SparkContext
 from packaging import version
-import pyspark.pandas as pd
-
+try:
+  import pyspark.pandas as pd
+except:
+  import databricks.koalas as pd 
 
 from labelspark.flatten_bronze_table import flatten_bronze_table
 from labelspark.add_json_answers_to_dictionary import add_json_answers_to_dictionary
