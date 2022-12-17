@@ -67,7 +67,7 @@ class Client:
             external_id_col=external_id_col,
             metadata_index=metadata_index)
         endtime = datetime.now()
-        print(f'Success: Labelbox upload conversion complete\n Start Time: {starttime}\n End Time: {endtime}\n Conversion Time: {endtime-starttime}\nData Rows to Upload: {len(uploads_pandas)}')
+        print(f'Success: Labelbox upload conversion complete\n Start Time: {starttime}\n End Time: {endtime}\n Conversion Time: {endtime-starttime}\nData Rows to Upload: {spark_table.count()}')        
         # Query your table and create a dictionary where {key=global_key : value=data_row_dict to-be-uploaded to Labelbox}
         starttime = datetime.now()
         upload_list = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
