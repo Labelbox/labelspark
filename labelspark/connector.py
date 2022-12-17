@@ -143,22 +143,12 @@ def create_uploads_column(lb_client, spark_table, row_data_col, global_key_col, 
     metadata_name_key_to_schema = get_metadata_schema_to_name_key(lb_client.get_data_row_metadata_ontology(), invert=True)
     # Run your __create_upload_data_row_values UDF, creating a new table in the process
     data_row_udf = udf(__create_upload_data_row_values, upload_schema)
-    df = spark_table.withColumn('uploads', data_row_udf(
-        row_data_col=row_data_col, 
-        global_key=global_key_col, 
-        external_id=external_id_col, 
-        metadata_name_key_to_schema_bytes=lit(json.dumps(metadata_name_key_to_schema)))
-    )
+    df = spark_table.withColumn('uploads', data_row_udf(row_data_col, global_key_col, external_id_col, lit(json.dumps(metadata_name_key_to_schema))))
     # Run your UDF, updating the existing uploads column with metadata values
     if metadata_index:
         metadata_udf = udf(attach_metadata_to_data_row_values, upload_schema)
         for column_name in metadata_index:
-            df = df.withColumn('uploads', metadata_udf(
-                metadata_value_col=column_name, data_row_col='uploads', 
-                metadata_field_name_key=lit(column_name), 
-                metadata_name_key_to_schema_bytes=lit(json.dumps(metadata_name_key_to_schema)), 
-                metadata_index_bytes=lit(json.dumps(metadata_index)))
-            )
+            df = df.withColumn('uploads', metadata_udf(column_name, 'uploads', lit(column_name), lit(json.dumps(metadata_name_key_to_schema)), lit(json.dumps(metadata_index))))
     return df
 
 def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_duplicates=True, batch_size=20000):
