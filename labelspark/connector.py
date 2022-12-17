@@ -60,7 +60,8 @@ def sync_metadata_fields(lb_client, spark_table, metadata_index={}):
             enum_options = get_unique_values(spark_table, metadata_field_name) if metadata_type == "enum" else []
             lb_mdo.create_schema(name=metadata_field_name, kind=conversion[metadata_type], options=enum_options)
             lb_mdo, lb_metadata_names = refresh_metadata_ontology(lb_client)
-    return spark_table
+    return_value = spark_table if spark_table else True            
+    return return_value
 
 def __create_upload_data_row_values(row_data_col, global_key_col, external_id_col, metadata_name_key_to_schema_bytes):
     """ Function to-be-wrapped into a pyspark UDF that will create data row dict values (without metadata)
