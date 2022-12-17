@@ -21,12 +21,8 @@ class Client:
         upsert_labelbox_metadata    :   Updates Labelbox metadata given a Databricks Spark table
     """
     def __init__(
-        self, 
-        lb_api_key=None,
-        lb_endpoint='https://api.labelbox.com/graphql', 
-        lb_enable_experimental=False, 
-        lb_app_url="https://app.labelbox.com"):
-
+        self, lb_api_key=None, lb_endpoint='https://api.labelbox.com/graphql', 
+        lb_enable_experimental=False, lb_app_url="https://app.labelbox.com"):
         self.lb_client = labelboxClient(lb_api_key, endpoint=lb_endpoint, enable_experimental=lb_enable_experimental, app_url=lb_app_url)
     
     def create_data_rows_from_table(self, spark_table, lb_dataset, row_data_col, global_key_col=None, external_id_col=None, metadata_index={}, batch_size=20000):
