@@ -75,7 +75,7 @@ def __create_upload_data_row_values(row_data_col, global_key_col, external_id_co
     metadata_name_key_to_schema = json.loads(metadata_name_key_to_schema_bytes)
     return {"row_data" : row_data_col, "external_id" : external_id_col, "global_key" : global_key_col, "metadata_fields" : [{"schema_id" : metadata_name_key_to_schema["lb_integration_source"], "value" : "Databricks"}]}
 
-def get_metadata_schema_to_name_key(lb_mdo:labelbox.schema.data_row_metadata.DataRowMetadataOntology. divider="///", invert=False):
+def get_metadata_schema_to_name_key(lb_mdo:labelbox.schema.data_row_metadata.DataRowMetadataOntology, divider="///", invert=False):
     """ Creates a dictionary where {key=metadata_schema_id: value=metadata_name_key} 
     - name_key is name for all metadata fields, and for enum options, it is "parent_name{divider}child_name"
     Args:
