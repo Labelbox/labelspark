@@ -15,7 +15,7 @@ def refresh_metadata_ontology(client):
     lb_metadata_names = [field['name'] for field in lb_mdo._get_ontology()]
     return lb_mdo, lb_metadata_names
 
-def get_unique_values(spark_table, column_name)):
+def get_unique_values(spark_table, column_name):
     """ Grabs all unique values from a spark table column as strings
     Args:
         spark_table         :   Required (pyspark.sql.dataframe.Dataframe) - Databricks Spark Table object
