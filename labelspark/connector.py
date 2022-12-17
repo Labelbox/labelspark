@@ -215,9 +215,7 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
         if errors:
             print(f'Data Row Creation Error: {errors}')
             return errors
-        else:
-            upload_results.extend(task.result)
-    return upload_results   
+    return upload_results
 
 
 def upsert_function(upsert_dict_bytes, global_key_col, metadata_value_col):
