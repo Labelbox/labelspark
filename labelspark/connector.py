@@ -40,14 +40,12 @@ def sync_metadata_fields(lb_client, spark_table, metadata_index={}):
     lb_mdo, lb_metadata_names = refresh_metadata_ontology(lb_client)
     # Convert your meatdata_index values from strings into labelbox.schema.data_row_metadata.DataRowMetadataKind types
     conversion = {"enum" : DataRowMetadataKind.enum, "string" : DataRowMetadataKind.string, "datetime" : DataRowMetadataKind.datetime, "number" : DataRowMetadataKind.number}
-    print(metadata_index)
     # Sync your spark_table columns to your metadata_index
     if metadata_index and spark_table:
         column_names = [str(col[0]) for col in spark_table.dtypes]
         for metadata_field_name in metadata_index.keys():
             if metadata_field_name not in column_names:
                 spark_table = spark_table.withColumn(metadata_field_name, lit(None).cast(StringType()))
-    spark_table.show()
     # Sync your Labelbox metadata ontology to your metadata_index
     for metadata_field_name in metadata_index.keys():
         metadata_type = metadata_index[metadata_field_name]
