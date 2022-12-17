@@ -211,7 +211,7 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
     upload_results = []
     for i in range(0,len(upload_list),batch_size):
         batch = upload_list[i:] if i + batch_size >= len(upload_list) else upload_list[i:i+batch_size]
-        print(batch[0]
+        print(batch[0])
         task = dataset.create_data_rows(batch)
         task.wait_till_done()
         if task.errors:
