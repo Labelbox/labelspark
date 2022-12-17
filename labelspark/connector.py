@@ -12,7 +12,7 @@ def refresh_metadata_ontology(client):
         lb_mdo              :   labelbox.schema.data_row_metadata.DataRowMetadataOntology
         lb_metadata_names   :   List of metadata field names from a Labelbox metadata ontology
     """
-    lb_mdo = client.lb_client.get_data_row_metadata_ontology()
+    lb_mdo = client.get_data_row_metadata_ontology()
     lb_metadata_names = [field['name'] for field in lb_mdo._get_ontology()]
     return lb_mdo, lb_metadata_names
 
