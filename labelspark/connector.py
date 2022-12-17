@@ -114,7 +114,7 @@ def attach_metadata_to_data_row_values(metadata_value_col, data_row_col, metadat
     metadata_type = json.loads(metadata_index_bytes)[str(metadata_field_name_key)]
     if (metadata_value_col is not None) or (str(metadata_value_col) != ""):
         metadata_value_name_key = f"{metadata_field_name_key}///{metadata_value_col}"
-        input_metadata_value = metadata_value_col if metadata_type != "enum" else metadata_name_key_to_schema[metadata_value_name_key)]
+        input_metadata_value = metadata_value_col if metadata_type != "enum" else metadata_name_key_to_schema[metadata_value_name_key]
         data_row['metadata_fields'].append({"schema_id":metadata_name_key_to_schema[str(metadata_field_name_key)],"value":input_metadata_value})
     return data_row
 
