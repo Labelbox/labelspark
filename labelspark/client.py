@@ -54,7 +54,7 @@ class Client:
             print(f'Error: No column matching provided "external_id_col" column value {external_id_col}')
             return None
         # Sync metadata index keys with metadata ontology
-        spark_table = connector.sync_metadata_fields(lb_client=self.lb_client, spark_table=spark_table, metadata_index=metadata_index)
+        spark_table = connector.sync_metadata_fields(lb_client=lb_client, spark_table=spark_table, metadata_index=metadata_index)
         if not spark_table:
             return None
         # Create a spark_table with a new "uploads" column that can be queried as a list of dictionaries and uploaded to Labelbox
