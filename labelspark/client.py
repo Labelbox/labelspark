@@ -96,7 +96,7 @@ class Client:
         starttime = datetime.now()
         data_rows_list = list(lb_dataset.export_data_rows(include_metadata=True)) if metadata_fields else list(lb_dataset.export_data_rows(include_metadata=False))
         endtime = datetime.now()
-        print(f'Labelbox data row export complete\nStart Time: {starttime}\nEnd Time: {endtime}\n Export Time: {starttime-endtime}\nData rows to create in table: {len(data_rows_list)}')
+        print(f'Labelbox data row export complete\n Start Time: {starttime}\n End Time: {endtime}\n Export Time: {endtime-starttime}\nData rows to create in table: {len(data_rows_list)}')
         starttime = datetime.now()
         metadata_schema_to_name_key = connector.get_metadata_schema_to_name_key(lb_client.get_data_row_metadata_ontology())
         # Create empty dict where {key= column name : value= list of values for column} (in order)
@@ -123,7 +123,7 @@ class Client:
                     table_dict[metadata_name].append(metadata_dict[metadata_name])
         return_spark_table = pd.DataFrame.from_dict(table_dict).to_spark()
         endtime = datetime.now()
-        print(f'Success: Created table from Labelbox dataset with ID {lb_dataset.uid}\nStart Time: {starttime}\nEnd Time: {endtime}\n Total Time: {starttime-endtime}\nData rows in table: {len(data_rows_list)}')
+        print(f'Success: Created table from Labelbox dataset with ID {lb_dataset.uid}\n Start Time: {starttime}\n End Time: {endtime}\n Total Time: {endtime-starttime}\nData rows in table: {len(data_rows_list)}')
         return return_spark_table
     
     def upsert_table_metadata(self, spark_table, global_key_col, global_keys_list=[], metadata_index={}):
