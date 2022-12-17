@@ -71,6 +71,7 @@ class Client:
         # Query your table and create a dictionary where {key=global_key : value=data_row_dict to-be-uploaded to Labelbox}
         starttime = datetime.now()
         upload_list = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
+        print(upload_list[0])
         global_key_to_upload_dict = {data_row_dict['global_key'] : data_row_dict for data_row_dict in upload_list}
         # Batch upload data rows from your global_key_to_upload_dict
         upload_results = connector.batch_create_data_rows(
