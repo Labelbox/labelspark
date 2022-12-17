@@ -1,4 +1,5 @@
 from pyspark.sql.functions import udf, lit
+import labelbox
 from labelbox.schema.data_row_metadata import DataRowMetadataKind
 from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
 import json
