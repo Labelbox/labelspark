@@ -115,8 +115,8 @@ def attach_metadata_to_data_row_values(metadata_value_col, data_row_col, metadat
     if (metadata_value_col is not None) or (str(metadata_value_col) != ""):
         metadata_value_name_key = f"{metadata_field_name_key}///{metadata_value_col}"
         input_metadata_value = metadata_value_col if metadata_type != "enum" else metadata_name_key_to_schema[metadata_value_name_key]
-        data_row['metadata_fields'].append({"schema_id":metadata_name_key_to_schema[str(metadata_field_name_key)],"value":input_metadata_value})
-    return data_row
+        data_row_col['metadata_fields'].append({"schema_id":metadata_name_key_to_schema[str(metadata_field_name_key)],"value":input_metadata_value})
+    return data_row_col
 
 def create_uploads_column(lb_client, spark_table, row_data_col, global_key_col, external_id_col, metadata_index={}):
     """ Creates a spark table with an "uploads" that can be queried and uploaded to Labebox
