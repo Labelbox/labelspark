@@ -79,7 +79,8 @@ class Client:
             dataset=lb_dataset, 
             global_key_to_upload_dict=global_key_to_upload_dict)
         endtime = datetime.now()
-        print(f'Success: Uploaded table rows to Labelbox dataset with ID {lb_dataset.uid}\n Start Time: {starttime}\n End Time: {endtime}\n Upload Time: {endtime-starttime}\nData rows uploaded: {len(global_key_to_upload_dict)}')
+        if not upload_results:
+            print(f'Success: Uploaded table rows to Labelbox dataset with ID {lb_dataset.uid}\n Start Time: {starttime}\n End Time: {endtime}\n Upload Time: {endtime-starttime}\nData rows uploaded: {len(global_key_to_upload_dict)}')
         return upload_results
 
     def create_table_from_dataset(self, lb_client, lb_dataset, metadata_index={}):
