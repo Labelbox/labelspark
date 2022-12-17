@@ -140,7 +140,7 @@ def create_uploads_column(lb_client, spark_table, row_data_col, global_key_col, 
         StructField("metadata_fields", ArrayType(MapType(StringType(), StringType(), True)))
     ])            
     # Set your udf variables
-    metadata_name_key_to_schema = get_metadata_schema_to_name_key(self.lb_client.get_data_row_metadata_ontology(), invert=True)
+    metadata_name_key_to_schema = get_metadata_schema_to_name_key(lb_client.get_data_row_metadata_ontology(), invert=True)
     # Run your __create_upload_data_row_values UDF, creating a new table in the process
     data_row_udf = udf(__create_upload_data_row_values, upload_schema)
     df = spark_dataframe.withColumn('uploads', data_row_udf(
