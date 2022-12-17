@@ -1,7 +1,7 @@
 from labelbox import Client as labelboxClient
 from labelspark import connector
 import pyspark.pandas as pd
-from pyspark.sql.functions import lit
+from pyspark.sql.functions import lit, col
 import json
 from datetime import datetime
 
@@ -125,6 +125,7 @@ class Client:
         return_spark_table = pd.DataFrame.from_dict(table_dict).to_spark()
         endtime = datetime.now()
         print(f'Success: Created table from Labelbox dataset with ID {lb_dataset.uid}\n Start Time: {starttime}\n End Time: {endtime}\n Total Time: {endtime-starttime}\nData rows in table: {len(data_rows_list)}')
+        return_spark_table = return_spark_table.drop(col("lb_integration_source"))
         return return_spark_table
     
     def upsert_table_metadata(self, lb_client, spark_table, global_key_col, global_keys_list=[], metadata_index={}):
@@ -135,7 +136,7 @@ class Client:
             lb_dataset          :   Required (labelbox.schema.dataset.Dataset) - Labelbox dataset to add data rows to
             global_key_col      :   Required (str) - Global key column name to map Labelbox data rows to the Databricks spark table rows
             global_keys_list    :   Optional (list) - List of global keys you wish to upsert - defaults to the whole table
-            metadata_index      :   Optional (dict) - Determines what metadata gets uploaded to Labelbox - dictionary where {key=column_name : value=metadata_type} - metadata_type must be one of "enum", "string", "datetime" or "number"
+            metadata_index      :   Optional (dict) - Determines what metadata gets upserted in Databricks - dictionary where {key=column_name : value=metadata_type} - metadata_type must be one of "enum", "string", "datetime" or "number"
         Returns:
             Upserted Spark table
         """
@@ -174,7 +175,7 @@ class Client:
         print(f'Upsert table metadata complete\n Start Time: {starttime}\n End Time: {endtime}\n Total Time: {endtime-starttime}\nData rows upserted: {len(data_row_metadata)}') 
         return spark_table
 
-    def upsert_labelbox_metadata(self, lb_client, spark_table, global_key_col, global_keys_list=[], metadata_fields=[]):
+    def upsert_labelbox_metadata(self, lb_client, spark_table, global_key_col, global_keys_list=[], metadata_index={}):
         """ Updates Labelbox data row metadata based on the most recent metadata from a Databricks spark table, only updates metadata fields provided via a metadata_index keys
         Args:
             lb_client           :   Required( labelbox.client.Client) - Labelbox Client object                    
@@ -182,10 +183,12 @@ class Client:
             lb_dataset          :   Required (labelbox.schema.dataset.Dataset) - Labelbox dataset to add data rows to
             global_key_col      :   Required (str) - Global key column name to map Labelbox data rows to the Databricks spark table rows
             global_keys_list    :   Optional (list) - List of global keys you wish to upsert - defaults to the whole table
-            metadata_fields     :   Optional (dict) - List of column names to to upsert in the table
+            metadata_index      :   Optional (dict) - Determines what metadata gets upserted in Labelbox - dictionary where {key=column_name : value=metadata_type} - metadata_type must be one of "enum", "string", "datetime" or "number"
         Returns:
             List of errors from metadata ontology bulk upsert - if successful, is an empty list
         """
+        starttime = datetime.now()
+        metadata_fields = list(metadata_index.keys())
         lb_mdo = lb_client.get_data_row_metadata_ontology()
         metadata_schema_to_name_key = connector.get_metadata_schema_to_name_key(lb_mdo)
         metadata_name_key_to_schema = connector.get_metadata_schema_to_name_key(lb_mdo, invert=True)
@@ -205,4 +208,6 @@ class Client:
                     field.value = metadata_schema_to_name_key[table_value].split("///")[1] if table_value in metadata_schema_to_name_key.keys() else field.value
             upload_metadata.append(new_metadata)
         results = lb_mdo.bulk_upsert(upload_metadata)
+        endtime = datetime.now()
+        print(f'Upsert Labelbox metadata complete\n Start Time: {starttime}\n End Time: {endtime}\n Total Time: {endtime-starttime}\nData rows upserted: {len(upload_metadata)}')         
         return results
