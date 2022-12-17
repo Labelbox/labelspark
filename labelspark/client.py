@@ -80,15 +80,16 @@ class Client:
         print(f'Success: Uploaded table rows to Labelbox dataset with ID {lb_dataset.uid}\nStart Time: {starttime}\nEnd Time: {endtime}\n Upload Time: {starttime-endtime}\nData rows uploaded: {len(uploads_pandas)}')
         return upload_results
 
-    def create_table_from_dataset(self, lb_dataset, metadata_index={}):
+    def create_table_from_dataset(self, lb_client, lb_dataset, metadata_index={}):
         """ Creates a Spark Table from a Labelbox dataset, optional metadata_fields will create 1 column per field name in list
         Args:
+            lb_client           :   Required( labelbox.client.Client) - Labelbox Client object
             lb_dataset          :   Required (labelbox.schema.dataset.Dataset) - Labelbox dataset to create a spark table from
             metadata_index      :   Optional (dict) - Determines what metadata gets uploaded to Labelbox - dictionary where {key=column_name : value=metadata_type} - metadata_type must be one of "enum", "string", "datetime" or "number"
         Returns:
             Spark Table - pyspark.sql.dataframe.Dataframe objet with columns "data_row_id", "global_key", "external_id", "row_data" and optional metadata fields as columns
         """        
-        spark_table = connector.sync_metadata_fields(lb_client=self.lb_client, spark_table=None, metadata_index=metadata_index)
+        spark_table = connector.sync_metadata_fields(lb_client=lb_client, spark_table=None, metadata_index=metadata_index)
         metadata_fields = list(metadata_index.keys())
         if not spark_table:
             return None
@@ -97,7 +98,7 @@ class Client:
         endtime = datetime.now()
         print(f'Labelbox data row export complete\nStart Time: {starttime}\nEnd Time: {endtime}\n Export Time: {starttime-endtime}\nData rows to create in table: {len(data_rows_list)}')
         starttime = datetime.now()
-        metadata_schema_to_name_key = connector.get_metadata_schema_to_name_key(self.lb_client.get_data_row_metadata_ontology())
+        metadata_schema_to_name_key = connector.get_metadata_schema_to_name_key(lb_client.get_data_row_metadata_ontology())
         # Create empty dict where {key= column name : value= list of values for column} (in order)
         table_dict = {"data_row_id" : [], "global_key" : [], "external_id" : [], "row_data" : []}
         if metadata_fields:
