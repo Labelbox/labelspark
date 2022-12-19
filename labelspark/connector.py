@@ -183,6 +183,7 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
         return res
     global_keys_list = list(global_key_to_upload_dict.keys())
     payload = __check_global_keys(client, global_keys_list)
+    print(payload)
     if payload:
         loop_counter = 0
         while len(payload['notFoundGlobalKeys']) != len(global_keys_list):
@@ -190,13 +191,13 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
             if payload['deletedDataRowGlobalKeys']:
                 client.clear_global_keys(payload['deletedDataRowGlobalKeys'])
                 payload = __check_global_keys(client, global_keys_list)
-                continue
-            # If gloval keys are taken by existing data rows, either skip them on upload or update the global key to have a "_{loop_counter}" suffix
+            # If global keys are taken by existing data rows, either skip them on upload or update the global key to have a "_{loop_counter}" suffix
             if payload['fetchedDataRows']:
                 loop_counter += 1
                 for i in range(0, len(payload['fetchedDataRows'])):
                     current_global_key = str(global_keys_list[i])
                     new_global_key = f"{current_global_key[:-3]}__{loop_counter}" if current_global_key[-3:-1] == "__" else f"{current_global_key}__{loop_counter}"
+                    print(new_global_key)
                     if payload['fetchedDataRows'][i] != "":
                         if skip_duplicates:
                             del global_key_to_upload_dict[current_global_key] # Delete this data_row_upload_dict from your upload_dict
@@ -207,6 +208,7 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
                             global_key_to_upload_dict[new_global_key] = new_upload_dict # Add your new data_row_upload_dict to your upload_dict
                 global_keys_list = list(global_key_to_upload_dict.keys())
                 payload = __check_global_keys(client, global_keys_list)
+                print(loop_counter)
     upload_list = list(global_key_to_upload_dict.values())
     upload_results = []
     for i in range(0,len(upload_list),batch_size):
