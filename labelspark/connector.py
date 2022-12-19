@@ -183,8 +183,8 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
         return res
     global_keys_list = list(global_key_to_upload_dict.keys())
     payload = __check_global_keys(client, global_keys_list)
-    loop_counter = 0
     if payload:
+        loop_counter = 0
         while len(payload['notFoundGlobalKeys']) != len(global_keys_list):
             # If global keys are taken by deleted data rows, clearn global keys from deleted data rows
             if payload['deletedDataRowGlobalKeys']:
@@ -195,14 +195,14 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
             if payload['fetchedDataRows']:
                 loop_counter += 1
                 for i in range(0, len(payload['fetchedDataRows'])):
-                    global_key = str(global_keys_list[i]).split("_")[0] if loop_counter >= 2 else str(global_keys_list[i])
-                    new_global_key = f"{global_key}_{loop_counter}"
+                    current_global_key = str(global_keys_list[i])
+                    new_global_key = f"{current_global_key[:-3]}__{loop_counter}" if current_global_key[-3:-1] == "__" else f"{current_global_key}__{loop_counter}"
                     if payload['fetchedDataRows'][i] != "":
                         if skip_duplicates:
-                            del global_key_to_upload_dict[global_key] # Delete this data_row_upload_dict from your upload_dict
+                            del global_key_to_upload_dict[current_global_key] # Delete this data_row_upload_dict from your upload_dict
                         else:
-                            new_upload_dict = global_key_to_upload_dict[global_key] # Grab the existing data_row_upload_dict
-                            del global_key_to_upload_dict[global_key] # Delete this data_row_upload_dict from your upload_dict
+                            new_upload_dict = global_key_to_upload_dict[current_global_key] # Grab the existing data_row_upload_dict
+                            del global_key_to_upload_dict[current_global_key] # Delete this data_row_upload_dict from your upload_dict
                             new_upload_dict['global_key'] = new_global_key # Put new global key values in this data_row_upload_dict
                             global_key_to_upload_dict[new_global_key] = new_upload_dict # Add your new data_row_upload_dict to your upload_dict
                 global_keys_list = list(global_key_to_upload_dict.keys())
@@ -211,7 +211,6 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
     upload_results = []
     for i in range(0,len(upload_list),batch_size):
         batch = upload_list[i:] if i + batch_size >= len(upload_list) else upload_list[i:i+batch_size]
-        print(batch[0])
         task = dataset.create_data_rows(batch)
         task.wait_till_done()
         if task.errors:
