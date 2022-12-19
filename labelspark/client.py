@@ -40,19 +40,17 @@ class Client:
             List of errors from data row upload - if successful, the task results from the upload
         """
         # Assign values to optional arguments
-        global_key_col = global_key_col if global_key_col else row_data_col
-        external_id_col = external_id_col if external_id_col else global_key_col       
+        col_inputs = {
+            "row_data_col" : row_data_col, 
+            "global_key_col" : global_key_col if global_key_col else row_data_col, 
+            "external_id_col" : external_id_col if external_id_col else global_key_col
+        }
         # Validate that your named columns exist in your spark_table
         column_names = [str(col[0]) for col in spark_table.dtypes]
-        if row_data_col not in column_names:
-            print(f'Error: No column matching provided "row_data_col" column value {row_data_col}')
-            return None
-        if global_key_col not in column_names:
-            print(f'Error: No column matching provided "global_key_col" column value {global_key_col}')
-            return None
-        if external_id_col not in column_names:
-            print(f'Error: No column matching provided "external_id_col" column value {external_id_col}')
-            return None
+        for col_input in col_inputs:
+            if col_inputs[col_input] not in column_names:
+                print(f'Error: No column matching provided "{col_input}" column value "{col_inputs[col_input]}"')
+                return None
         # Sync metadata index keys with metadata ontology
         spark_table = connector.sync_metadata_fields(lb_client=lb_client, spark_table=spark_table, metadata_index=metadata_index)
         if not spark_table:
@@ -60,12 +58,10 @@ class Client:
         # Create a spark_table with a new "uploads" column that can be queried as a list of dictionaries and uploaded to Labelbox
         starttime = datetime.now()
         uploads_table = connector.create_uploads_column(
-            lb_client=lb_client,
-            spark_table=spark_table,
-            row_data_col=row_data_col,
-            global_key_col=global_key_col,
-            external_id_col=external_id_col,
-            metadata_index=metadata_index)
+            lb_client=lb_client, spark_table=spark_table, 
+            row_data_col=col_inputs['row_data_col'], global_key_col=col_inputs['global_key_col'], 
+            external_id_col=col_inputs['external_id_col'], metadata_index=metadata_index
+        )
         endtime = datetime.now()
         print(f'Success: Labelbox upload conversion complete\n Start Time: {starttime}\n End Time: {endtime}\n Conversion Time: {endtime-starttime}\nData Rows to Upload: {spark_table.count()}')        
         # Query your table and create a dictionary where {key=global_key : value=data_row_dict to-be-uploaded to Labelbox}
@@ -73,13 +69,12 @@ class Client:
         upload_list = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
         global_key_to_upload_dict = {data_row_dict['global_key'] : data_row_dict for data_row_dict in upload_list}
         # Batch upload data rows from your global_key_to_upload_dict
-        upload_results = connector.batch_create_data_rows(
-            client=lb_client, 
-            dataset=lb_dataset, 
-            global_key_to_upload_dict=global_key_to_upload_dict)
+        upload_results = connector.batch_create_data_rows(client=lb_client, dataset=lb_dataset, global_key_to_upload_dict=global_key_to_upload_dict)
         endtime = datetime.now()
         if not upload_results:
             print(f'Success: Uploaded table rows to Labelbox dataset with ID {lb_dataset.uid}\n Start Time: {starttime}\n End Time: {endtime}\n Upload Time: {endtime-starttime}\nData rows uploaded: {len(global_key_to_upload_dict)}')
+        else:
+            print(f'Failure: {len(upload_results)} errors present. Example Error: {upload_results[0]}')
         return upload_results
 
     def create_table_from_dataset(self, lb_client, lb_dataset, metadata_index={}):
@@ -92,10 +87,10 @@ class Client:
             Spark Table - pyspark.sql.dataframe.Dataframe objet with columns "data_row_id", "global_key", "external_id", "row_data" and optional metadata fields as columns
         """        
         spark_table = connector.sync_metadata_fields(lb_client=lb_client, spark_table=None, metadata_index=metadata_index)
-        metadata_fields = list(metadata_index.keys())
         if not spark_table:
             return None
         starttime = datetime.now()
+        metadata_fields = list(metadata_index.keys())
         data_rows_list = list(lb_dataset.export_data_rows(include_metadata=True)) if metadata_fields else list(lb_dataset.export_data_rows(include_metadata=False))
         endtime = datetime.now()
         print(f'Labelbox data row export complete\n Start Time: {starttime}\n End Time: {endtime}\n Export Time: {endtime-starttime}\nData rows to create in table: {len(data_rows_list)}')
@@ -123,11 +118,11 @@ class Client:
                             metadata_dict[metadata_field['name']] = metadata_schema_to_name_key[metadata_field['value']].split("///")[1] if metadata_field['value'] in metadata_schema_to_name_key else metadata_field['value']
                 for metadata_name in metadata_dict:
                     table_dict[metadata_name].append(metadata_dict[metadata_name])
-        return_spark_table = pd.DataFrame.from_dict(table_dict).to_spark()
+        spark_table = pd.DataFrame.from_dict(table_dict).to_spark()
+        spark_table = spark_table.drop(col("lb_integration_source"))
         endtime = datetime.now()
         print(f'Success: Created table from Labelbox dataset with ID {lb_dataset.uid}\n Start Time: {starttime}\n End Time: {endtime}\n Total Time: {endtime-starttime}\nData rows in table: {len(data_rows_list)}')
-        return_spark_table = return_spark_table.drop(col("lb_integration_source"))
-        return return_spark_table
+        return spark_table
     
     def upsert_table_metadata(self, lb_client, spark_table, global_key_col, global_keys_list=[], metadata_index={}):
         """ Upserts a Spark Table based on the most recent metadata in Labelbox, only upserts columns provided via metadata_fields list
@@ -141,37 +136,36 @@ class Client:
         Returns:
             Upserted Spark table
         """
+        # Export data row metadata from Labelbox through global keys
         starttime = datetime.now()
         lb_mdo = lb_client.get_data_row_metadata_ontology()
         metadata_schema_to_name_key = connector.get_metadata_schema_to_name_key(lb_mdo)
-        metadata_fields = list(metadata_index.keys())
-        # Either use global_keys provided or all the global keys in the provided global_key column 
+        ## Either use global_keys provided or all the global keys in the provided global_key column 
         global_keys = global_keys_list if global_keys_list else [str(x.__getitem__(global_key_col)) for x in spark_table.select(global_key_col).distinct().collect()]
-        # Grab data row IDs with global_key list
+        ## Grab data row IDs with global_key list
         data_row_ids = lb_client.get_data_row_ids_for_global_keys(global_keys)['results']
-        # Get data row metadata with list of data row IDs
+        ## Get data row metadata with list of data row IDs
         data_row_metadata = lb_mdo.bulk_export(data_row_ids)
         endtime = datetime.now()
         print(f'Laeblbox metadata export complete\n Start Time: {starttime}\n End Time: {endtime}\n Export Time: {endtime-starttime}\nData rows in export: {len(data_row_metadata)}')        
+        # Run the table through a UDF that will update metadata column values using the Global Key as the primary key        
         starttime = datetime.now()
-        # Dict where metadata_field_name : global_key : metadata_field_value (for enums, is the schema ID)
+        ## Create a dict where {metadata_field_name (column name) : {global_key : new_metadata_value}} (for enums, is the schema ID)
+        metadata_fields = list(metadata_index.keys())
         upsert_dict = {}
         for data_row in data_row_metadata:
             for field in data_row.fields:
                 if field.schema_id in metadata_schema_to_name_key:
-                    metadata_field_name = metadata_schema_to_name_key[field.schema_id]
+                    metadata_col = metadata_schema_to_name_key[field.schema_id]
                     if metadata_field_name in metadata_fields:
-                        if metadata_field_name not in upsert_dict.keys():
-                            upsert_dict[metadata_field_name] = {}
-                        upsert_dict[metadata_field_name][data_row.global_key] = metadata_schema_to_name_key[field.value].split("///")[1] if field.value in metadata_schema_to_name_key.keys() else field.value
-        # Create a UDF that will upsert a column value given a global_key and a new value
+                        if metadata_col not in upsert_dict.keys():
+                            upsert_dict[metadata_col] = {}
+                        upsert_dict[metadata_col][data_row.global_key] = metadata_schema_to_name_key[field.value].split("///")[1] if field.value in metadata_schema_to_name_key.keys() else field.value
+        ## Create a UDF that will upsert a column value given a global_key and a new value
         metadata_upsert_udf = connector.metadata_upsert_udf()
-        # For each metadata field, upsert the columns that have new values and are included in our global_keys list
-        for metadata_field_name in upsert_dict:               
-            spark_table.withColumn(metadata_field_name, metadata_upsert_udf(
-                upsert_dict_bytes=lit(json.dumps(upsert_dict[metadata_field_name])), 
-                global_key_col=global_key_col, 
-                metadata_value_col=metadata_field_name))
+        ## For each metadata field column, upsert column values with the values in your dict where {key=global_key : value=new_metadata_value}
+        for metadata_col in upsert_dict:               
+            spark_table.withColumn(metadata_field_name, metadata_upsert_udf(lit(json.dumps(upsert_dict[metadata_col])), global_key_col, metadata_col))
         endtime = datetime.now()
         print(f'Upsert table metadata complete\n Start Time: {starttime}\n End Time: {endtime}\n Total Time: {endtime-starttime}\nData rows upserted: {len(data_row_metadata)}') 
         return spark_table
@@ -188,17 +182,21 @@ class Client:
         Returns:
             List of errors from metadata ontology bulk upsert - if successful, is an empty list
         """
+        # Export data row metadata from Labelbox through global keys        
         starttime = datetime.now()
-        metadata_fields = list(metadata_index.keys())
         lb_mdo = lb_client.get_data_row_metadata_ontology()
         metadata_schema_to_name_key = connector.get_metadata_schema_to_name_key(lb_mdo)
-        metadata_name_key_to_schema = connector.get_metadata_schema_to_name_key(lb_mdo, invert=True)
-        # Either use global_keys provided or all the global keys in the provided global_key_col
+        ## Either use global_keys provided or all the global keys in the provided global_key column 
         global_keys = global_keys_list if global_keys_list else [str(x.__getitem__(global_key_col)) for x in spark_table.select(global_key_col).distinct().collect()]
-        # Grab data row IDs with global_key list
+        ## Grab data row IDs with global_key list
         data_row_ids = lb_client.get_data_row_ids_for_global_keys(global_keys)['results']
-        # Get data row metadata with list of data row IDs
+        ## Get data row metadata with list of data row IDs
         data_row_metadata = lb_mdo.bulk_export(data_row_ids)  
+        endtime = datetime.now()
+        print(f'Laeblbox metadata export complete\n Start Time: {starttime}\n End Time: {endtime}\n Export Time: {endtime-starttime}\nData rows in export: {len(data_row_metadata)}')                
+        # Structure a new metadata upload by grabbing the latest values from your spark table, using the global key as the primary key
+        starttime = datetime.now()
+        metadata_fields = list(metadata_index.keys())
         upload_metadata = []  
         for data_row in data_row_metadata:
             new_metadata = data_row.fields[:]
