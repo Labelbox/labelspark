@@ -153,6 +153,7 @@ class Client:
         global_keys = global_keys_list if global_keys_list else [str(x.__getitem__(global_key_col)) for x in spark_table.select(global_key_col).distinct().collect()]
         ## Grab data row IDs with global_key list
         data_row_ids = lb_client.get_data_row_ids_for_global_keys(global_keys)['results']
+        data_row_id_to_global_key = {str(data_row_ids[i]) : str(global_keys[i]) for i in range(0, len(data_row_ids))}
         ## Get data row metadata with list of data row IDs
         data_row_metadata = lb_mdo.bulk_export(data_row_ids)
         endtime = datetime.now()
@@ -169,7 +170,7 @@ class Client:
                     if metadata_col in metadata_fields:
                         if metadata_col not in upsert_dict.keys():
                             upsert_dict[metadata_col] = {}
-                        upsert_dict[metadata_col][data_row.global_key] = metadata_schema_to_name_key[field.value].split("///")[1] if field.value in metadata_schema_to_name_key.keys() else field.value
+                        upsert_dict[metadata_col][data_row_id_to_global_key[str(data_row.data_row_id)]] = metadata_schema_to_name_key[field.value].split("///")[1] if field.value in metadata_schema_to_name_key.keys() else field.value
         ## Create a UDF that will upsert a column value given a global_key and a new value
         metadata_upsert_udf = connector.metadata_upsert_udf()
         ## For each metadata field column, upsert column values with the values in your dict where {key=global_key : value=new_metadata_value}
@@ -199,6 +200,7 @@ class Client:
         global_keys = global_keys_list if global_keys_list else [str(x.__getitem__(global_key_col)) for x in spark_table.select(global_key_col).distinct().collect()]
         ## Grab data row IDs with global_key list
         data_row_ids = lb_client.get_data_row_ids_for_global_keys(global_keys)['results']
+        data_row_id_to_global_key = {str(data_row_ids[i]) : str(global_keys[i]) for i in range(0, len(data_row_ids))}
         ## Get data row metadata with list of data row IDs
         data_row_metadata = lb_mdo.bulk_export(data_row_ids)  
         endtime = datetime.now()
@@ -212,7 +214,7 @@ class Client:
             for field in new_metadata:
                 field_name = metadata_schema_to_name_key[field.schema_id]
                 if field_name in metadata_fields:
-                    table_value = spark_table.filter(f"{global_key_col} = {data_row.global_key}").collect()[0].__getitem__(field_name)
+                    table_value = spark_table.filter(f"{global_key_col} = {data_row_id_to_global_key[str(data_row.data_row_id)]}").collect()[0].__getitem__(field_name)
                     field.value = metadata_schema_to_name_key[table_value].split("///")[1] if table_value in metadata_schema_to_name_key.keys() else field.value
             upload_metadata.append(new_metadata)
         results = lb_mdo.bulk_upsert(upload_metadata)
