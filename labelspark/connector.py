@@ -186,6 +186,8 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
     if payload:
         loop_counter = 0
         while len(payload['notFoundGlobalKeys']) != len(global_keys_list):
+            if not payload:
+                break
             # If global keys are taken by deleted data rows, clearn global keys from deleted data rows
             if payload['deletedDataRowGlobalKeys']:
                 client.clear_global_keys(payload['deletedDataRowGlobalKeys'])
@@ -196,7 +198,6 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
                 for i in range(0, len(payload['fetchedDataRows'])):
                     current_global_key = str(global_keys_list[i])
                     new_global_key = f"{current_global_key[:-3]}__{loop_counter}" if current_global_key[-3:-1] == "__" else f"{current_global_key}__{loop_counter}"
-                    print(new_global_key)
                     if payload['fetchedDataRows'][i] != "":
                         if skip_duplicates:
                             del global_key_to_upload_dict[current_global_key] # Delete this data_row_upload_dict from your upload_dict
