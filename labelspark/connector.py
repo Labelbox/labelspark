@@ -193,6 +193,8 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
                 client.clear_global_keys(payload['deletedDataRowGlobalKeys'])
                 payload = __check_global_keys(client, global_keys_list)
             # If global keys are taken by existing data rows, either skip them on upload or update the global key to have a "_{loop_counter}" suffix
+            if not payload:
+                break
             if payload['fetchedDataRows']:
                 loop_counter += 1
                 for i in range(0, len(payload['fetchedDataRows'])):
@@ -220,7 +222,7 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
             else:
                 print(f'Data Row Creation Error: {errors[0]}')
             return errors
-    return False
+    return []
 
 def upsert_function(upsert_dict_bytes, global_key_col, metadata_value_col):
     """ Nested UDF Functionality upsert metadata in Labelbox and in the pyspark dataframe
