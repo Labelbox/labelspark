@@ -22,10 +22,14 @@ class Client:
     """
     def __init__(
         self, lb_api_key=None, lb_endpoint='https://api.labelbox.com/graphql', 
-        lb_enable_experimental=False, lb_app_url="https://app.labelbox.com"):
+        lb_enable_experimental=False, lb_app_url="https://app.labelbox.com"
+    ):
         self.lb_client = labelboxClient(lb_api_key, endpoint=lb_endpoint, enable_experimental=lb_enable_experimental, app_url=lb_app_url)
     
-    def create_data_rows_from_table(self, lb_client, spark_table, lb_dataset, row_data_col, global_key_col=None, external_id_col=None, metadata_index={}, batch_size=20000):
+    def create_data_rows_from_table(
+        self, lb_client, spark_table, lb_dataset, row_data_col, global_key_col=None, 
+        external_id_col=None, metadata_index={}, skip_duplicates=False, batch_size=20000
+    ):
         """ Creates Labelbox data rows given a Spark Table and a Labelbox Dataset. Requires user to specify which columns correspond to which data row values.
         Args:
             lb_client           :   Required( labelbox.client.Client) - Labelbox Client object        
@@ -35,6 +39,7 @@ class Client:
             global_key_col      :   Optional (str) - Column name for the global key - defaults to row_data_col
             external_id_col     :   Optional (str) - Column name for the external ID - defaults to global_key_col
             metadata_index      :   Optional (dict) - Determines what metadata gets uploaded to Labelbox - dictionary where {key=column_name : value=metadata_type} - metadata_type must be one of "enum", "string", "datetime" or "number"
+            skip_duplicates     : Optional (bool) - If True, will skip duplicate global_keys, otherwise will generate a unique global_key with a suffix "_1", "_2" and so on
             batch_size          :   Optional (int) - Data row upload batch size - recommended to leave at 20,000
         Returns:
             List of errors from data row upload - if successful, the task results from the upload
@@ -69,7 +74,9 @@ class Client:
         upload_list = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
         global_key_to_upload_dict = {data_row_dict['global_key'] : data_row_dict for data_row_dict in upload_list}
         # Batch upload data rows from your global_key_to_upload_dict
-        upload_results = connector.batch_create_data_rows(client=lb_client, dataset=lb_dataset, global_key_to_upload_dict=global_key_to_upload_dict)
+        upload_results = connector.batch_create_data_rows(
+            client=lb_client, dataset=lb_dataset, global_key_to_upload_dict=global_key_to_upload_dict, skip_duplicates=skip_duplicates
+        )
         endtime = datetime.now()
         if not upload_results:
             print(f'Success: Uploaded table rows to Labelbox dataset with ID {lb_dataset.uid}\n Start Time: {starttime}\n End Time: {endtime}\n Upload Time: {endtime-starttime}\nData rows uploaded: {len(global_key_to_upload_dict)}')
@@ -86,7 +93,9 @@ class Client:
         Returns:
             Spark Table - pyspark.sql.dataframe.Dataframe objet with columns "data_row_id", "global_key", "external_id", "row_data" and optional metadata fields as columns
         """        
-        spark_table = connector.sync_metadata_fields(lb_client=lb_client, spark_table=None, metadata_index=metadata_index)
+        spark_table = connector.sync_metadata_fields(
+            lb_client=lb_client, spark_table=None, metadata_index=metadata_index
+        )
         if not spark_table:
             return None
         starttime = datetime.now()
