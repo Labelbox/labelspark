@@ -166,7 +166,7 @@ class Client:
             for field in data_row.fields:
                 if field.schema_id in metadata_schema_to_name_key:
                     metadata_col = metadata_schema_to_name_key[field.schema_id]
-                    if metadata_field_name in metadata_fields:
+                    if metadata_col in metadata_fields:
                         if metadata_col not in upsert_dict.keys():
                             upsert_dict[metadata_col] = {}
                         upsert_dict[metadata_col][data_row.global_key] = metadata_schema_to_name_key[field.value].split("///")[1] if field.value in metadata_schema_to_name_key.keys() else field.value
@@ -174,7 +174,7 @@ class Client:
         metadata_upsert_udf = connector.metadata_upsert_udf()
         ## For each metadata field column, upsert column values with the values in your dict where {key=global_key : value=new_metadata_value}
         for metadata_col in upsert_dict:               
-            spark_table.withColumn(metadata_field_name, metadata_upsert_udf(lit(json.dumps(upsert_dict[metadata_col])), global_key_col, metadata_col))
+            spark_table.withColumn(metadata_col, metadata_upsert_udf(lit(json.dumps(upsert_dict[metadata_col])), global_key_col, metadata_col))
         endtime = datetime.now()
         print(f'Upsert table metadata complete\n Start Time: {starttime}\n End Time: {endtime}\n Total Time: {endtime-starttime}\nData rows upserted: {len(data_row_metadata)}') 
         return spark_table
