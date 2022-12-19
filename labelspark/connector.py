@@ -162,7 +162,7 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
         skip_duplicates             : Optional (bool) - If True, will skip duplicate global_keys, otherwise will generate a unique global_key with a suffix "_1", "_2" and so on
         batch_size                  : Optional (int) : Upload batch size, 20,000 is recommended
     Returns:
-        A concatenated list of upload results for all batch uploads
+        Upload errors - returns False if no errors
     """
     def __check_global_keys(client, global_keys):
         """ Checks if data rows exist for a set of global keys
@@ -183,7 +183,6 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
         return res
     global_keys_list = list(global_key_to_upload_dict.keys())
     payload = __check_global_keys(client, global_keys_list)
-    print(payload)
     if payload:
         loop_counter = 0
         while len(payload['notFoundGlobalKeys']) != len(global_keys_list):
@@ -208,18 +207,19 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
                             global_key_to_upload_dict[new_global_key] = new_upload_dict # Add your new data_row_upload_dict to your upload_dict
                 global_keys_list = list(global_key_to_upload_dict.keys())
                 payload = __check_global_keys(client, global_keys_list)
-                print(loop_counter)
     upload_list = list(global_key_to_upload_dict.values())
-    upload_results = []
     for i in range(0,len(upload_list),batch_size):
         batch = upload_list[i:] if i + batch_size >= len(upload_list) else upload_list[i:i+batch_size]
         task = dataset.create_data_rows(batch)
         task.wait_till_done()
-        if task.errors:
-            print(f'Data Row Creation Error: {task.errors}')
-            return task.errors
-    return upload_results
-
+        errors = task.errors
+        if errors:
+            if type(errors) == str:
+                print(f'Data Row Creation Error: {errors}')
+            else:
+                print(f'Data Row Creation Error: {errors[0]}')
+            return errors
+    return False
 
 def upsert_function(upsert_dict_bytes, global_key_col, metadata_value_col):
     """ Nested UDF Functionality upsert metadata in Labelbox and in the pyspark dataframe
