@@ -40,9 +40,9 @@ Please consult the demo notebook in the "Notebooks" directory. LabelSpark includ
 LB_dataset = labelspark.create_dataset(labelbox_client, spark_dataframe, dataset_name="Sample Dataset", 
                                       iam_integration='DEFAULT', metadata_index = dictionary_of_metadata_columns)
 ```
-Where "spark_dataframe" is your dataframe of unstructured data with asset names and asset URLs in two columns, named "external_id" and "row_data" respectively. The metadata_index is an optional parameter if you wish to import metadata from other Spark table columns to Labelbox.
+Where "spark_dataframe" is your dataframe of unstructured data with asset names and asset URLs in two columns, named "global_key" and "row_data" respectively. The metadata_index is an optional parameter if you wish to import metadata from other Spark table columns to Labelbox.
 
-| external_id | row_data                             | optional_metadata_field | optional_metadata_field_2| ... |
+| global_key  | row_data                             | optional_metadata_field | optional_metadata_field_2| ... |
 |-------------|--------------------------------------|-------------------------|--------------------------|-----|
 | image1.jpg  | https://url_to_your_asset/image1.jpg |  "Example string 1"     |          1234            | ... |
 | image2.jpg  | https://url_to_your_asset/image2.jpg |  "Example string 2"     |          88.8            | ... |
