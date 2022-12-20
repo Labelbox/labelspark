@@ -195,6 +195,7 @@ class Client:
         starttime = datetime.now()
         lb_mdo = lb_client.get_data_row_metadata_ontology()
         metadata_schema_to_name_key = connector.get_metadata_schema_to_name_key(lb_mdo)
+        metadata_name_key_to_schema = connector.get_metadata_schema_to_name_key(lb_mdo, invert=True)
         ## Either use global_keys provided or all the global keys in the provided global_key column 
         global_keys = global_keys_list if global_keys_list else [str(x.__getitem__(global_key_col)) for x in spark_table.select(global_key_col).distinct().collect()]
         ## Grab data row IDs with global_key list
@@ -209,12 +210,17 @@ class Client:
         metadata_fields = list(metadata_index.keys())
         upload_metadata = []  
         for data_row in data_row_metadata:
+            global_key = data_row_id_to_global_key[str(data_row.data_row_id)]
+            print(f"global_key_col: {global_key_col}")
+            print(f"global_key: {global_key}")
             new_metadata = data_row.fields[:]
             for field in new_metadata:
                 field_name = metadata_schema_to_name_key[field.schema_id]
                 if field_name in metadata_fields:
-                    table_value = spark_table.filter(f"{global_key_col} = {data_row_id_to_global_key[str(data_row.data_row_id)]}").collect()[0].__getitem__(field_name)
-                    field.value = metadata_schema_to_name_key[table_value].split("///")[1] if table_value in metadata_schema_to_name_key.keys() else field.value
+                    print(f"field_name: {field_name}")
+                    table_value = spark_table.filter(f"{global_key_col} = {global_key}").collect()[0].__getitem__(field_name)
+                    table_name_key = f"{field_name}///{table_value}"
+                    field.value = metadata_name_key_to_schema[table_name_key] if table_name_key in metadata_name_key_to_schema.keys() else table_value
             upload_metadata.append(new_metadata)
         results = lb_mdo.bulk_upsert(upload_metadata)
         endtime = datetime.now()
