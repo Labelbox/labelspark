@@ -1,4 +1,5 @@
 from labelbox import Client as labelboxClient
+from labelbox.schema.data_row_metadata import DataRowMetadata
 from labelspark import connector
 import pyspark.pandas as pd
 from pyspark.sql.functions import lit, col
@@ -224,7 +225,7 @@ class Client:
                     table_value = spark_table.filter(f"{global_key_col} = '{global_key}'").collect()[0].__getitem__(field_name)
                     table_name_key = f"{field_name}///{table_value}"
                     field.value = metadata_name_key_to_schema[table_name_key] if table_name_key in metadata_name_key_to_schema.keys() else table_value
-            upload_metadata.extend(new_metadata)
+            upload_metadata.append(DataRowMetadata(data_row_id=data_row.data_row_id, fields=new_metadata)
         results = lb_mdo.bulk_upsert(upload_metadata)
         endtime = datetime.now()
         print(f'Upsert Labelbox metadata complete\n Start Time: {starttime}\n End Time: {endtime}\n Total Time: {endtime-starttime}\nData rows upserted: {len(upload_metadata)}')         
