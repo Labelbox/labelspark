@@ -164,7 +164,7 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
     Returns:
         Upload errors - returns False if no errors
     """
-    def __check_global_keys(client, global_keys):
+    def check_global_keys(client, global_keys):
         """ Checks if data rows exist for a set of global keys
         Args:
             client                  : Required (labelbox.client.Client) : Labelbox Client object
@@ -175,27 +175,22 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
         query_keys = [str(x) for x in global_keys]
         # Create a query job to get data row IDs given global keys
         query_str_1 = """query get_datarow_with_global_key($global_keys:[ID!]!){dataRowsForGlobalKeys(where:{ids:$global_keys}){jobId}}"""
-        query_job_id = client.execute(query_str_1, {"global_keys":global_keys})['dataRowsForGlobalKeys']['jobId']
-        # Get the results of this query job
         query_str_2 = """query get_job_result($job_id:ID!){dataRowsForGlobalKeysResult(jobId:{id:$job_id}){data{
-                        accessDeniedGlobalKeys\ndeletedDataRowGlobalKeys\nfetchedDataRows{id}\nnotFoundGlobalKeys}jobStatus}}"""
-        res = client.execute(query_str_2, {"job_id":query_job_id})['dataRowsForGlobalKeysResult']['data']
+                        accessDeniedGlobalKeys\ndeletedDataRowGlobalKeys\nfetchedDataRows{id}\nnotFoundGlobalKeys}jobStatus}}"""        
+        while not res:
+            query_job_id = client.execute(query_str_1, {"global_keys":global_keys})['dataRowsForGlobalKeys']['jobId']
+            res = client.execute(query_str_2, {"job_id":query_job_id})['dataRowsForGlobalKeysResult']['data']
         return res
     global_keys_list = list(global_key_to_upload_dict.keys())
-    payload = __check_global_keys(client, global_keys_list)
+    payload = check_global_keys(client, global_keys_list)
     if payload:
         loop_counter = 0
         while len(payload['notFoundGlobalKeys']) != len(global_keys_list):
-            if not payload:
-                break
             # If global keys are taken by deleted data rows, clearn global keys from deleted data rows
             if payload['deletedDataRowGlobalKeys']:
                 client.clear_global_keys(payload['deletedDataRowGlobalKeys'])
-                payload = __check_global_keys(client, global_keys_list)
             # If global keys are taken by existing data rows, either skip them on upload or update the global key to have a "_{loop_counter}" suffix
-            if not payload:
-                break
-            if payload['fetchedDataRows']:
+            elif payload['fetchedDataRows']:
                 loop_counter += 1
                 for i in range(0, len(payload['fetchedDataRows'])):
                     current_global_key = str(global_keys_list[i])
@@ -209,7 +204,7 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
                             new_upload_dict['global_key'] = new_global_key # Put new global key values in this data_row_upload_dict
                             global_key_to_upload_dict[new_global_key] = new_upload_dict # Add your new data_row_upload_dict to your upload_dict
                 global_keys_list = list(global_key_to_upload_dict.keys())
-                payload = __check_global_keys(client, global_keys_list)
+                payload = check_global_keys(client, global_keys_list)
     upload_list = list(global_key_to_upload_dict.values())
     for i in range(0,len(upload_list),batch_size):
         batch = upload_list[i:] if i + batch_size >= len(upload_list) else upload_list[i:i+batch_size]
