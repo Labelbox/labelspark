@@ -3,6 +3,7 @@ import labelbox
 from labelbox.schema.data_row_metadata import DataRowMetadataKind
 from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
 import json
+import uuid
 
 def refresh_metadata_ontology(client):
     """ Refreshes a Labelbox Metadata Ontology
@@ -242,3 +243,13 @@ def column_upsert_udf():
         UDF object to-be-run using: spark_dataframe.withColumn(col_name, udf(**kwargs))
     """      
     return udf(upsert_function, StringType())
+
+def generate_random_keys(spark_table, column_name="new_global_key"):
+    """ Adds a new column to your spark_table with randomly generated unique keys
+    """
+    def randomizer():
+        return str(uuid.uuid4())
+    randomizer_udf = udf(randomizer, StringType())
+    spark_table.withColumn(column_name, randomizer_udf())
+    
+    
