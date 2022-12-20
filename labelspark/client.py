@@ -150,7 +150,7 @@ class Client:
         lb_mdo = lb_client.get_data_row_metadata_ontology()
         metadata_schema_to_name_key = connector.get_metadata_schema_to_name_key(lb_mdo)
         ## Either use global_keys provided or all the global keys in the provided global_key column 
-        global_keys = global_keys_list if global_keys_list else [str(x.__getitem__(global_key_col)) for x in spark_table.select(global_key_col).distinct().collect()]
+        global_keys = global_keys_list if global_keys_list else connector.get_unique_values(spark_table, global_key_col)
         ## Grab data row IDs with global_key list
         data_row_ids = lb_client.get_data_row_ids_for_global_keys(global_keys)['results']
         data_row_id_to_global_key = {str(data_row_ids[i]) : str(global_keys[i]) for i in range(0, len(data_row_ids))}
@@ -164,8 +164,9 @@ class Client:
         metadata_fields = list(metadata_index.keys())
         upsert_dict = {}
         for data_row in data_row_metadata:
-            global_key = data_row_id_to_global_key[str(data_row.data_row_id)]
+            global_key = str(data_row_id_to_global_key[str(data_row.data_row_id)])
             root_global_key = global_key[:-3] if global_key[-3:-1] == "__" else global_key            
+            print(global_key, root_global_key)
             for field in data_row.fields:
                 if field.schema_id in metadata_schema_to_name_key:
                     metadata_col = metadata_schema_to_name_key[field.schema_id]
@@ -201,7 +202,7 @@ class Client:
         metadata_schema_to_name_key = connector.get_metadata_schema_to_name_key(lb_mdo)
         metadata_name_key_to_schema = connector.get_metadata_schema_to_name_key(lb_mdo, invert=True)
         ## Either use global_keys provided or all the global keys in the provided global_key column 
-        global_keys = global_keys_list if global_keys_list else [str(x.__getitem__(global_key_col)) for x in spark_table.select(global_key_col).distinct().collect()]
+        global_keys = global_keys_list if global_keys_list else connector.get_unique_values(spark_table, global_key_col)
         ## Grab data row IDs with global_key list
         data_row_ids = lb_client.get_data_row_ids_for_global_keys(global_keys)['results']
         data_row_id_to_global_key = {str(data_row_ids[i]) : str(global_keys[i]) for i in range(0, len(data_row_ids))}
@@ -223,7 +224,7 @@ class Client:
                     table_value = spark_table.filter(f"{global_key_col} = '{global_key}'").collect()[0].__getitem__(field_name)
                     table_name_key = f"{field_name}///{table_value}"
                     field.value = metadata_name_key_to_schema[table_name_key] if table_name_key in metadata_name_key_to_schema.keys() else table_value
-            upload_metadata.append(new_metadata)
+            upload_metadata.extend(new_metadata)
         results = lb_mdo.bulk_upsert(upload_metadata)
         endtime = datetime.now()
         print(f'Upsert Labelbox metadata complete\n Start Time: {starttime}\n End Time: {endtime}\n Total Time: {endtime-starttime}\nData rows upserted: {len(upload_metadata)}')         
