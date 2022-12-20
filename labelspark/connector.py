@@ -240,9 +240,9 @@ def upsert_function(upsert_dict_bytes, global_key_col, metadata_value_col):
         return_value = metadata_value_col
     return return_value                
 
-def metadata_upsert_udf():
+def metadata_upsert_udf(upsert_dict_bytes, global_key_col, metadata_value_col):
     """ Returns a UDF that will upsert a column given a dictionary where {key=column_name : value=new_value}
     Returns:
         UDF object to-be-run using: spark_dataframe.withColumn(col_name, udf(**kwargs))
     """      
-    return udf(upsert_function(), StringType())
+    return udf(upsert_function(upsert_dict_bytes, global_key_col, metadata_value_col), StringType())
