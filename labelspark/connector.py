@@ -225,11 +225,11 @@ def batch_create_data_rows(client, dataset, global_key_to_upload_dict, skip_dupl
     return []
 
 def upsert_function(upsert_dict_bytes, global_key_col, metadata_value_col):
-    """ Nested UDF Functionality upsert metadata in Labelbox and in the pyspark dataframe
+    """ Nested UDF Functionality to upsert a column in a Databricks Spark table given a dictionary where 
     Args:  
-        upsert_dict_bytes               :   Required (bytes) - Bytearray representation of a converter dictionary where {key=global_keys and value=latest_metadata_values}
+        upsert_dict_bytes               :   Required (bytes) - Bytearray representation of a dictionary where {key=global_key : value=new_value}
         global_key_col                  :   Required (str) - Column name for the global_key
-        metadata_value_col              :   Required (str) - Column name for the  current metadata value
+        metadata_value_col              :   Required (str) - Target column name
     Returns:
         New value to-be-inserted in the column corresponding to this metadata field
     """  
@@ -240,8 +240,8 @@ def upsert_function(upsert_dict_bytes, global_key_col, metadata_value_col):
         return_value = metadata_value_col
     return return_value                
 
-def metadata_upsert_udf():
-    """ Returns a UDF that will upsert a column given a dictionary where {key=column_name : value=new_value}
+def column_upsert_udf():
+    """ Returns a UDF that will upsert a column given a dictionary where {key=primary_key : value=new_value}
     Returns:
         UDF object to-be-run using: spark_dataframe.withColumn(col_name, udf(**kwargs))
     """      
