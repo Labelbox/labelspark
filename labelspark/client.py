@@ -175,7 +175,7 @@ class Client:
         metadata_upsert_udf = connector.metadata_upsert_udf()
         ## For each metadata field column, upsert column values with the values in your dict where {key=global_key : value=new_metadata_value}
         for metadata_col in upsert_dict:               
-            spark_table.withColumn(metadata_col, metadata_upsert_udf(lit(json.dumps(upsert_dict[metadata_col])), global_key_col, metadata_col))
+            spark_table.withColumn(metadata_col, metadata_upsert_udf(upsert_dict_bytes=lit(json.dumps(upsert_dict[metadata_col])), global_key_col=global_key_col, metadata_value_col=metadata_col))
         endtime = datetime.now()
         print(f'Upsert table metadata complete\n Start Time: {starttime}\n End Time: {endtime}\n Total Time: {endtime-starttime}\nData rows upserted: {len(data_row_metadata)}') 
         return spark_table
