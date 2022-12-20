@@ -167,7 +167,6 @@ class Client:
         for data_row in data_row_metadata:
             global_key = str(data_row_id_to_global_key[str(data_row.data_row_id)])
             root_global_key = global_key[:-3] if global_key[-3:-1] == "__" else global_key            
-            print(global_key, root_global_key)
             for field in data_row.fields:
                 if field.schema_id in metadata_schema_to_name_key:
                     metadata_col = metadata_schema_to_name_key[field.schema_id]
