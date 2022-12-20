@@ -221,7 +221,6 @@ class Client:
             for field in new_metadata:
                 field_name = metadata_schema_to_name_key[field.schema_id]
                 if field_name in metadata_fields:
-                    print(f"field_name: {field_name}")
                     table_value = spark_table.filter(f"{global_key_col} = '{global_key}'").collect()[0].__getitem__(field_name)
                     table_name_key = f"{field_name}///{table_value}"
                     field.value = metadata_name_key_to_schema[table_name_key] if table_name_key in metadata_name_key_to_schema.keys() else table_value
