@@ -95,9 +95,9 @@ display(silver_video_dataframes[0]
 ```
 
 While using LabelSpark, you will likely also use the Labelbox SDK (e.g. for programmatic ontology creation). These resources will help familiarize you with the Labelbox Python SDK: 
-* [Visit our docs](https://labelbox.com/docs/python-api) to learn how the SDK works
+* [Visit our docs](https://docs.labelbox.com/reference/install-python-sdk) to learn how the SDK works
 * Checkout our [notebook examples](https://github.com/Labelbox/labelspark/tree/master/notebooks) to follow along with interactive tutorials
-* view our [API reference](https://labelbox.com/docs/python-api/api-reference).
+* view our [API reference](https://labelbox-python.readthedocs.io/en/latest/).
 
 ## Authentication
 
