@@ -166,7 +166,7 @@ class Client:
         upsert_dict = {}
         for data_row in data_row_metadata:
             global_key = str(data_row_id_to_global_key[str(data_row.data_row_id)])
-            root_global_key = global_key[:-3] if global_key[-3:-1] == "__" else global_key            
+            print(data_row.data_row_id, global_key)
             for field in data_row.fields:
                 if field.schema_id in metadata_schema_to_name_key:
                     metadata_col = metadata_schema_to_name_key[field.schema_id]
@@ -175,7 +175,6 @@ class Client:
                             upsert_dict[metadata_col] = {}
                         input_value = metadata_schema_to_name_key[field.value].split("///")[1] if field.value in metadata_schema_to_name_key.keys() else field.value
                         upsert_dict[metadata_col][global_key] = input_value
-                        upsert_dict[metadata_col][root_global_key] = input_value
         ## For each metadata field column, use a UDF upsert column values with the values in your dict where {key=global_key : value=new_metadata_value}
         upsert_udf = connector.column_upsert_udf()
         for metadata_col in upsert_dict:
