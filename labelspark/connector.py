@@ -245,4 +245,4 @@ def metadata_upsert_udf():
     Returns:
         UDF object to-be-run using: spark_dataframe.withColumn(col_name, udf(**kwargs))
     """      
-    return udf(upsert_function(), StringType())
+    return udf(upsert_function, StringType())
