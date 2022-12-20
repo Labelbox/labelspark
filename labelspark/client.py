@@ -164,13 +164,17 @@ class Client:
         metadata_fields = list(metadata_index.keys())
         upsert_dict = {}
         for data_row in data_row_metadata:
+            global_key = data_row_id_to_global_key[str(data_row.data_row_id)]
+            root_global_key = global_key[:-3] if global_key[-3:-1] == "__" else global_key            
             for field in data_row.fields:
                 if field.schema_id in metadata_schema_to_name_key:
                     metadata_col = metadata_schema_to_name_key[field.schema_id]
                     if metadata_col in metadata_fields:
                         if metadata_col not in upsert_dict.keys():
                             upsert_dict[metadata_col] = {}
-                        upsert_dict[metadata_col][data_row_id_to_global_key[str(data_row.data_row_id)]] = metadata_schema_to_name_key[field.value].split("///")[1] if field.value in metadata_schema_to_name_key.keys() else field.value
+                        input_value = metadata_schema_to_name_key[field.value].split("///")[1] if field.value in metadata_schema_to_name_key.keys() else field.value
+                        upsert_dict[metadata_col][global_key] = input_value
+                        upsert_dict[metadata_col][root_global_key] = input_value
         ## For each metadata field column, use a UDF upsert column values with the values in your dict where {key=global_key : value=new_metadata_value}
         upsert_udf = connector.column_upsert_udf()
         for metadata_col in upsert_dict:
@@ -211,14 +215,12 @@ class Client:
         upload_metadata = []  
         for data_row in data_row_metadata:
             global_key = data_row_id_to_global_key[str(data_row.data_row_id)]
-            print(f"global_key_col: {global_key_col}")
-            print(f"global_key: {global_key}")
             new_metadata = data_row.fields[:]
             for field in new_metadata:
                 field_name = metadata_schema_to_name_key[field.schema_id]
                 if field_name in metadata_fields:
                     print(f"field_name: {field_name}")
-                    table_value = spark_table.filter(f"{global_key_col} = {global_key}").collect()[0].__getitem__(field_name)
+                    table_value = spark_table.filter(f"{global_key_col} = '{global_key}'").collect()[0].__getitem__(field_name)
                     table_name_key = f"{field_name}///{table_value}"
                     field.value = metadata_name_key_to_schema[table_name_key] if table_name_key in metadata_name_key_to_schema.keys() else table_value
             upload_metadata.append(new_metadata)
