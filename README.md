@@ -20,7 +20,7 @@ This library is currently in beta. It may contain errors or inaccuracies and may
 * Databricks: Runtime 10.4 LTS or Later
 * Apache Spark: 3.1.2 or Later
 * [Labelbox account](http://app.labelbox.com/)
-* [Generate a Labelbox API key](https://labelbox.com/docs/api/getting-started#create_api_key)
+* [Generate a Labelbox API key](https://docs.labelbox.com/reference/create-api-key)
 
 ## Installation
 
