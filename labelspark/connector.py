@@ -248,6 +248,11 @@ def generate_random_keys(spark_table, column_name="new_global_key"):
     """ Adds a new column to your spark_table with randomly generated unique keys
     """
     def randomizer():
-        return str(uuid.uuid4())
+        return f"{str(uuid.uuid4())}-{str(uuid.uuid4())}"
     randomizer_udf = udf(randomizer, StringType())
     return spark_table.withColumn(column_name, randomizer_udf())
+
+def change_column_values(spark_table, column_name:str, column_value:str):
+    """ Adds a new column / modifies an existing column in your spark_table to a constant value
+    """
+    return spark_table.withColumn(column_name, lit(column_value))
