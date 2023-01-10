@@ -139,3 +139,20 @@ def add_column_function(table:DataFrame, column_name:str, default_value=""):
     """
     table = table.withColumn(column_name, lit(default_value))
     return table
+  
+def upsert_function(upsert_dict_bytes, global_key_col, metadata_value_col):
+    """ Nested UDF Functionality to upsert a column in a Databricks Spark table given a dictionary where 
+    Args:  
+        upsert_dict_bytes               :   Required (bytes) - Bytearray representation of a dictionary where {key=global_key : value=new_value}
+        global_key_col                  :   Required (str) - Column name for the global_key
+        metadata_value_col              :   Required (str) - Target column name
+    Returns:
+        New value to-be-inserted in the column corresponding to this metadata field
+    """  
+    upsert_dict = json.loads(upsert_dict_bytes)
+    if global_key_col in upsert_dict.keys():
+        return_value = upsert_dict[global_key_col]
+    else:
+        return_value = metadata_value_col
+    return return_value
+
