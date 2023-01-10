@@ -1,6 +1,6 @@
+from labelspark import connector, check_pyspark
 from labelbox import Client as labelboxClient
 from labelbox.schema.data_row_metadata import DataRowMetadata
-from labelspark import connector
 from pyspark.sql.functions import lit, col
 import json
 from datetime import datetime
@@ -22,7 +22,7 @@ class Client:
     """
     def __init__(self, lb_api_key=None, lb_endpoint='https://api.labelbox.com/graphql', lb_enable_experimental=False, lb_app_url="https://app.labelbox.com"):
         self.lb_client = labelboxClient(lb_api_key, endpoint=lb_endpoint, enable_experimental=lb_enable_experimental, app_url=lb_app_url)
-        connector.check_pyspark()
+        check_pyspark()
     
     def create_data_rows_from_table(
         self, lb_client, spark_table, lb_dataset, row_data_col, global_key_col=None, 
@@ -42,10 +42,6 @@ class Client:
         Returns:
             List of errors from data row upload - if successful, the task results from the upload
         """
-        if not on_pyspark:
-            raise
-            print(f'labelspark.Client() requires pyspark to be installed - please update your Databricks runtime to support pyspark')
-            return None
         # Assign values to optional arguments
         col_inputs = {
             "row_data_col" : row_data_col, 
