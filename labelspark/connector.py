@@ -6,6 +6,12 @@ from labelbox import Client as labelboxClient
 from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
 import json
 
+def check_pyspark():
+    try:
+        import pyspark.pandas as pd
+    except:
+        raise RuntimeError(f'labelspark.Client() requires pyspark to be installed - please update your Databricks runtime to support pyspark')
+
 def create_upload_dict(table:DataFrame, lb_client:labelboxClient, base_client:labelbaseClient, row_data_col:str, 
                        global_key_col:str="", external_id_col:str="", metadata_index:dict={}, local_files:bool=False, 
                        divider:str="///", verbose=False):
