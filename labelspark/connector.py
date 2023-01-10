@@ -1,17 +1,17 @@
 from pyspark.sql.functions import udf, lit
-from pyspark.sql.dataframe import Dataframe
+from pyspark.sql.dataframe import DataFrame
 from labelbox.schema.data_row_metadata import DataRowMetadataKind
 from labelbase import Client as baseClient
 from labelbox import Client as labelboxClient
 from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
 import json
 
-def create_upload_dict(table:Dataframe, lb_client:labelboxClient, base_client:baseClient, row_data_col:str, 
+def create_upload_dict(table:DataFrame, lb_client:labelboxClient, base_client:baseClient, row_data_col:str, 
                        global_key_col:str="", external_id_col:str="", metadata_index:dict={}, local_files:bool=False, 
                        divider:str="///", verbose=False):
     """ Uses UDFs to create a column of data row dictionaries to-be-uploaded, then converts this column into a list
     Args:
-        table                       :   Required (pyspark.sql.dataframe.Dataframe) - Spark Table
+        table                       :   Required (pyspark.sql.dataframe.DataFrame) - Spark Table
         lb_client                   :   Required (labelbox.client.Client) - Labelbox Client object
         base_client                 :   Required (labelbase.client.Client) - Labelbase Client object
         row_data_col                :   Required (str) - Column containing asset URL or file path
@@ -38,12 +38,12 @@ def create_upload_dict(table:Dataframe, lb_client:labelboxClient, base_client:ba
     global_key_to_upload_dict = {data_row_dict['global_key'] : data_row_dict for data_row_dict in upload_list}
     return global_key_to_upload_dict
 
-def create_uploads_column(table:Dataframe, lb_client:labelboxClient, row_data_col:str, 
+def create_uploads_column(table:DataFrame, lb_client:labelboxClient, row_data_col:str, 
                           global_key_col:str, external_id_col:str, metadata_name_key_to_schema:dict, 
                           metadata_schema_to_name_key:dict, metadata_index:dict={}, divider:str="///"):
     """ Creates a spark table with an "uploads" that can be queried and uploaded to Labebox
     Args:
-        table                       :   Required (pyspark.sql.dataframe.Dataframe) - Spark Table
+        table                       :   Required (pyspark.sql.dataframe.DataFrame) - Spark Table
         lb_client                   :   Required (labelbox.client.Client) - Labelbox Client object
         row_data_col                :   Required (str) - Column containing asset URL or file path
         global_key_col              :   Required (str) - Column name containing the data row global key - defaults to row data
@@ -109,29 +109,29 @@ def __add_metadata_udf(metadata_value_col, data_row_col, metadata_field_name_key
         data_row_col['metadata_fields'].append({"schema_id":metadata_name_key_to_schema[str(metadata_field_name_key)],"value":input_metadata_value})
     return data_row_col
 
-def get_columns_function(table:Dataframe):
+def get_columns_function(table:DataFrame):
     """Grabs all column names from a Pandas DataFrame
     Args:
-        spark_table         :   Required (pyspark.sql.dataframe.Dataframe) - Spark Table
+        spark_table         :   Required (pyspark.sql.dataframe.DataFrame) - Spark Table
     Returns:
         List of strings corresponding to all column names
     """
     return [str(col[0]) for col in table.dtypes]
 
-def get_unique_values_function(table:Dataframe, column_name):
+def get_unique_values_function(table:DataFrame, column_name):
     """ Grabs all unique values from a spark table column as strings
     Args:
-        spark_table         :   Required (pyspark.sql.dataframe.Dataframe) - Databricks Spark Table object
+        spark_table         :   Required (pyspark.sql.dataframe.DataFrame) - Databricks Spark Table object
         column_name         :   Required (str) - Spark Table column name
     Returns:
         List of unique values from a spark table column as strings
     """
     return [str(x.__getitem__(column_name)) for x in table.select(column_name).distinct().collect()]
 
-def add_column_function(table:Dataframe, column_name:str, default_value=""):
+def add_column_function(table:DataFrame, column_name:str, default_value=""):
     """ Adds a column of empty values to an existing Pandas DataFrame
     Args:
-        spark_table         :   Required (pyspark.sql.dataframe.Dataframe) - Databricks Spark Table object
+        spark_table         :   Required (pyspark.sql.dataframe.DataFrame) - Databricks Spark Table object
         column_name         :   Required (str) - Spark Table column name
         default_value       :   Optional (str) - Value to insert for every row in the newly created column
     Returns:
