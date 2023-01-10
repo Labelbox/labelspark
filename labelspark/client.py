@@ -27,7 +27,7 @@ class Client:
     def __init__(self, lb_api_key=None, lb_endpoint='https://api.labelbox.com/graphql', lb_enable_experimental=False, lb_app_url="https://app.labelbox.com"):
         self.lb_client = labelboxClient(lb_api_key, endpoint=lb_endpoint, enable_experimental=lb_enable_experimental, app_url=lb_app_url)
         self.base_client = labelbaseClient(lb_api_key, lb_endpoint=lb_endpoint, lb_enable_experimental=lb_enable_experimental, lb_app_url=lb_app_url)
-        check_pyspark()
+        connector.check_pyspark()
     
     def create_data_rows_from_table(
         self, table:DataFrame, lb_dataset:labelboxDataset, row_data_col:str, global_key_col:str="", external_id_col:str="",
