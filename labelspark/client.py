@@ -1,10 +1,16 @@
 from labelbox import Client as labelboxClient
 from labelbox.schema.data_row_metadata import DataRowMetadata
 from labelspark import connector
-import pyspark.pandas as pd
 from pyspark.sql.functions import lit, col
 import json
 from datetime import datetime
+
+try:
+  import pyspark.pandas as pd
+  needs_koalas = False
+except:
+  import databricks.koalas as pd
+  needs_koalas = True
 
 class Client:
     """ A Databricks Client, containing a Labelbox Client, to-be-run a Databricks notebook
@@ -26,6 +32,8 @@ class Client:
         lb_enable_experimental=False, lb_app_url="https://app.labelbox.com"
     ):
         self.lb_client = labelboxClient(lb_api_key, endpoint=lb_endpoint, enable_experimental=lb_enable_experimental, app_url=lb_app_url)
+        if needs_koalas:
+            print(f'labelspark.Client() object requires pyspark to be installed - please update your Databricks runtime to support pyspark')
     
     def create_data_rows_from_table(
         self, lb_client, spark_table, lb_dataset, row_data_col, global_key_col=None, 
