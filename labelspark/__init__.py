@@ -13,4 +13,3 @@ from .spark_schema_to_string import spark_schema_to_string
 from .dictionary_collector import dictionary_collector
 from .update_metadata import update_metadata
 from .client import Client
-from .setup_koalas import setup_koalas
