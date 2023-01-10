@@ -1,4 +1,4 @@
-from labelspark import connector, check_pyspark
+from labelspark import connector
 from pyspark.sql.dataframe import DataFrame
 from labelbox import Client as labelboxClient
 from labelbase import Client as labelbaseClient
