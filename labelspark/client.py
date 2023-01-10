@@ -1,5 +1,7 @@
 from labelspark import connector, check_pyspark
+from pyspark.sql.dataframe import DataFrame
 from labelbox import Client as labelboxClient
+from labelbox.schema.dataset import Dataset as labelboxDataset
 from labelbox.schema.data_row_metadata import DataRowMetadata
 from pyspark.sql.functions import lit, col
 import json
@@ -14,6 +16,7 @@ class Client:
         lb_app_url                  :   Optional (str) - Labelbox web app URL
     Attributes:
         lb_client                   :   labelbox.client.Client object
+        base_client                 :   labelbase.Client object
     Key Functions:
         create_data_rows_from_table :   Creates Labelbox data rows (and metadata) given a Databricks Spark table
         create_table_from_dataset   :   Creates a Databricks Spark table given a Labelbox dataset
@@ -22,65 +25,68 @@ class Client:
     """
     def __init__(self, lb_api_key=None, lb_endpoint='https://api.labelbox.com/graphql', lb_enable_experimental=False, lb_app_url="https://app.labelbox.com"):
         self.lb_client = labelboxClient(lb_api_key, endpoint=lb_endpoint, enable_experimental=lb_enable_experimental, app_url=lb_app_url)
+        self.base_client = labelbaseClient(lb_api_key, lb_endpoint=lb_endpoint, lb_enable_experimental=lb_enable_experimental, lb_app_url=lb_app_url)
         check_pyspark()
     
     def create_data_rows_from_table(
-        self, lb_client, spark_table, lb_dataset, row_data_col, global_key_col=None, 
-        external_id_col=None, metadata_index={}, skip_duplicates=False, batch_size=20000
-    ):
-        """ Creates Labelbox data rows given a Spark Table and a Labelbox Dataset. Requires user to specify which columns correspond to which data row values.
+        self, table:DataFrame, lb_dataset:labelboxDataset, row_data_col:str, global_key_col:str="", external_id_col:str="",
+        metadata_index:dict={}, local_files:bool=False, skip_duplicates:bool=False, verbose:bool=False, divider="___"):
+        """ Creates Labelbox data rows given a Pandas table and a Labelbox Dataset
         Args:
-            lb_client           :   Required( labelbox.client.Client) - Labelbox Client object        
-            spark_table         :   Required (pyspark.sql.dataframe.Dataframe) - Spark Table
-            lb_dataset          :   Required (labelbox.schema.dataset.Dataset) - Labelbox dataset to add data rows to
-            row_data_col        :   Required (str) - Column name for the data row row data URL
-            global_key_col      :   Optional (str) - Column name for the global key - defaults to row_data_col
-            external_id_col     :   Optional (str) - Column name for the external ID - defaults to global_key_col
-            metadata_index      :   Optional (dict) - Determines what metadata gets uploaded to Labelbox - dictionary where {key=column_name : value=metadata_type} - metadata_type must be one of "enum", "string", "datetime" or "number"
-            skip_duplicates     : Optional (bool) - If True, will skip duplicate global_keys, otherwise will generate a unique global_key with a suffix "_1", "_2" and so on
-            batch_size          :   Optional (int) - Data row upload batch size - recommended to leave at 20,000
+            table           :   Required (pyspark.sql.dataframe.DataFrame) - Spark Table
+            lb_dataset      :   Required (labelbox.schema.dataset.Dataset) - Labelbox dataset to add data rows to            
+            row_data_col    :   Required (str) - Column containing asset URL or file path
+            local_files     :   Required (bool) - Determines how to handle row_data_col values
+                                    If True, treats row_data_col values as file paths uploads the local files to Labelbox
+                                    If False, treats row_data_col values as urls (assuming delegated access is set up)
+            global_key_col  :   Optional (str) - Column name containing the data row global key - defaults to row_data_col
+            external_id_col :   Optional (str) - Column name containing the data row external ID - defaults to global_key_col
+            metadata_index  :   Required (dict) - Dictionary where {key=column_name : value=metadata_type}
+                                    metadata_type must be either "enum", "string", "datetime" or "number"
+            skip_duplicates :   Optional (bool) - Determines how to handle if a global key to-be-uploaded is already in use
+                                    If True, will skip duplicate global_keys and not upload them
+                                    If False, will generate a unique global_key with a suffix "_1", "_2" and so on
+            verbose         :   Required (bool) - If True, prints details about code execution; if False, prints minimal information
+            divider         :   Optional (str) - String delimiter for all name keys generated for parent/child schemas
         Returns:
-            List of errors from data row upload - if successful, the task results from the upload
-        """
-        # Assign values to optional arguments
-        col_inputs = {
-            "row_data_col" : row_data_col, 
-            "global_key_col" : global_key_col if global_key_col else row_data_col, 
-            "external_id_col" : external_id_col if external_id_col else global_key_col
-        }
-        # Validate that your named columns exist in your spark_table
-        column_names = [str(col[0]) for col in spark_table.dtypes]
-        for col_input in col_inputs:
-            if col_inputs[col_input] not in column_names:
-                print(f'Error: No column matching provided "{col_input}" column value "{col_inputs[col_input]}"')
-                return None
-        # Sync metadata index keys with metadata ontology
-        spark_table = connector.sync_metadata_fields(lb_client=lb_client, spark_table=spark_table, metadata_index=metadata_index)
-        if not spark_table:
-            return None
-        # Create a spark_table with a new "uploads" column that can be queried as a list of dictionaries and uploaded to Labelbox
-        starttime = datetime.now()
-        uploads_table = connector.create_uploads_column(
-            lb_client=lb_client, spark_table=spark_table, 
-            row_data_col=col_inputs['row_data_col'], global_key_col=col_inputs['global_key_col'], 
-            external_id_col=col_inputs['external_id_col'], metadata_index=metadata_index
+            A dictionary with "upload_results" and "conversion_errors" keys
+            - "upload_results" key pertains to the results of the data row upload itself
+            - "conversion_errors" key pertains to any errors related to data row conversion
+        """    
+        
+        # Ensure all your metadata_index keys are metadata fields in Labelbox and that your Pandas DataFrame has all the right columns
+        table = self.base_client.sync_metadata_fields(
+            table=table, get_columns_function=connector.get_columns_function, add_column_function=connector.add_column_function, 
+            get_unique_values_function=connector.get_unique_values_function, metadata_index=metadata_index, verbose=verbose
         )
-        endtime = datetime.now()
-        print(f'Success: Labelbox upload conversion complete\n Start Time: {starttime}\n End Time: {endtime}\n Conversion Time: {endtime-starttime}\nData Rows to Upload: {spark_table.count()}')        
-        # Query your table and create a dictionary where {key=global_key : value=data_row_dict to-be-uploaded to Labelbox}
-        starttime = datetime.now()
-        upload_list = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
-        global_key_to_upload_dict = {data_row_dict['global_key'] : data_row_dict for data_row_dict in upload_list}
-        # Batch upload data rows from your global_key_to_upload_dict
-        upload_results = connector.batch_create_data_rows(
-            client=lb_client, dataset=lb_dataset, global_key_to_upload_dict=global_key_to_upload_dict, skip_duplicates=skip_duplicates
+        
+        # If df returns False, the sync failed - terminate the upload
+        if type(table) == bool:
+            return {"upload_results" : [], "conversion_errors" : []}
+        
+        # Create a dictionary where {key=global_key : value=labelbox_upload_dictionary} - this is unique to Pandas
+        global_key_to_upload_dict, conversion_errors = connector.create_upload_dict(
+            table=table, lb_client=self.lb_client, base_client=self.base_client,
+            row_data_col=row_data_col, global_key_col=global_key_col, external_id_col=external_id_col, 
+            metadata_index=metadata_index, local_files=local_files, divider=divider, verbose=verbose
         )
-        endtime = datetime.now()
-        if not upload_results:
-            print(f'Success: Uploaded table rows to Labelbox dataset with ID {lb_dataset.uid}\n Start Time: {starttime}\n End Time: {endtime}\n Upload Time: {endtime-starttime}\nData rows uploaded: {len(global_key_to_upload_dict)}')
-        else:
-            print(f'Failure: {len(upload_results)} errors present. Example Error: {upload_results[0]}')
-        return upload_results
+        
+        # If there are conversion errors, let the user know; if there are no successful conversions, terminate the upload
+        if conversion_errors:
+            print(f'There were {len(conversion_errors)} errors in creating your upload list - see result["conversion_errors"] for more information')
+            if global_key_to_upload_dict:
+                print(f'Data row upload will continue')
+            else:
+                print(f'Data row upload will not continue')  
+                return {"upload_results" : [], "conversion_errors" : errors}
+                
+        # Upload your data rows to Labelbox
+        upload_results = self.base_client.batch_create_data_rows(
+            dataset=lb_dataset, global_key_to_upload_dict=global_key_to_upload_dict, 
+            skip_duplicates=skip_duplicates, divider=divider, verbose=verbose
+        )
+        
+        return {"upload_results" : upload_results, "conversion_errors" : conversion_errors}
 
     def create_table_from_dataset(self, lb_client, lb_dataset, metadata_index={}):
         """ Creates a Spark Table from a Labelbox dataset, optional metadata_fields will create 1 column per field name in list
