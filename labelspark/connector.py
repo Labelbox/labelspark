@@ -1,12 +1,12 @@
 from pyspark.sql.functions import udf, lit
 from pyspark.sql.dataframe import DataFrame
 from labelbox.schema.data_row_metadata import DataRowMetadataKind
-from labelbase import Client as baseClient
+from labelbase import Client as labelbaseClient
 from labelbox import Client as labelboxClient
 from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
 import json
 
-def create_upload_dict(table:DataFrame, lb_client:labelboxClient, base_client:baseClient, row_data_col:str, 
+def create_upload_dict(table:DataFrame, lb_client:labelboxClient, base_client:labelbaseClient, row_data_col:str, 
                        global_key_col:str="", external_id_col:str="", metadata_index:dict={}, local_files:bool=False, 
                        divider:str="///", verbose=False):
     """ Uses UDFs to create a column of data row dictionaries to-be-uploaded, then converts this column into a list
