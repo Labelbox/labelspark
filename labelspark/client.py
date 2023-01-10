@@ -8,6 +8,13 @@ from pyspark.sql.functions import lit, col
 import json
 from datetime import datetime
 
+try:
+  import pyspark.pandas as pd
+  needs_koalas = False
+except:
+  import databricks.koalas as pd
+  needs_koalas = True 
+
 class Client:
     """ A Databricks Client, containing a Labelbox Client, to-be-run a Databricks notebook
     Args:
