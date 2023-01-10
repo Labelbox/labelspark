@@ -1,6 +1,7 @@
 from labelspark import connector, check_pyspark
 from pyspark.sql.dataframe import DataFrame
 from labelbox import Client as labelboxClient
+from labelbase import Client as labelbaseClient
 from labelbox.schema.dataset import Dataset as labelboxDataset
 from labelbox.schema.data_row_metadata import DataRowMetadata
 from pyspark.sql.functions import lit, col
