@@ -1,4 +1,4 @@
-def check_for_pyspark():
+def check_pyspark():
     try:
         import pyspark.pandas as pd
     except:
