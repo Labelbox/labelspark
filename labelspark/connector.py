@@ -36,8 +36,7 @@ def create_upload_dict(table:DataFrame, lb_client:labelboxClient, base_client:la
     external_id_col = external_id_col if external_id_col else global_key_col  
     metadata_schema_to_name_key = base_client.get_metadata_schema_to_name_key(lb_mdo=False, divider=divider) 
     uploads_table = create_uploads_column(
-        table=table, lb_client=lb_client, row_data_col=row_data_col, global_key_col=global_key_col,
-        external_id_col=external_id_col, metadata_name_key_to_schema=metadata_name_key_to_schema, 
+        table=table, lb_client=lb_client, row_data_col=row_data_col, global_key_col=global_key_col, external_id_col=external_id_col, 
         metadata_schema_to_name_key=metadata_schema_to_name_key, metadata_index=metadata_index
     )
     upload_list = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
