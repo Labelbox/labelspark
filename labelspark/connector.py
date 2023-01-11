@@ -34,10 +34,10 @@ def create_upload_dict(table:DataFrame, lb_client:labelboxClient, base_client:la
     """        
     global_key_col = global_key_col if global_key_col else row_data_col
     external_id_col = external_id_col if external_id_col else global_key_col  
-    metadata_schema_to_name_key = base_client.get_metadata_schema_to_name_key(lb_mdo=False, divider=divider) 
+    metadata_name_key_to_schema = base_client.get_metadata_schema_to_name_key(lb_mdo=False, divider=divider, invert=True) 
     uploads_table = create_uploads_column(
         table=table, lb_client=lb_client, row_data_col=row_data_col, global_key_col=global_key_col, external_id_col=external_id_col, 
-        metadata_schema_to_name_key=metadata_schema_to_name_key, metadata_index=metadata_index
+        metadata_name_key_to_schema=metadata_name_key_to_schema, metadata_index=metadata_index
     )
     upload_list = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
     global_key_to_upload_dict = {data_row_dict['global_key'] : data_row_dict for data_row_dict in upload_list}
@@ -53,7 +53,7 @@ def create_uploads_column(table:DataFrame, lb_client:labelboxClient, row_data_co
         row_data_col                :   Required (str) - Column containing asset URL or file path
         global_key_col              :   Required (str) - Column name containing the data row global key - defaults to row data
         external_id_col             :   Required (str) - Column name containing the data row external ID - defaults to global key
-        metadata_schema_to_name_key :   Required (dict) - Dictionary where {key=metadata_schema_id : value=metadata_field_name_key}
+        metadata_name_key_to_schema :   Required (dict) - Dictionary where {key=metadata_field_name_key : value=metadata_schema_id}
         metadata_index              :   Optional (dict) - Dictionary where {key=column_name : value=metadata_type}
                                             metadata_type must be either "enum", "string", "datetime" or "number"
         divider                     :   Optional (str) - String delimiter for all name keys generated for parent/child schemas
