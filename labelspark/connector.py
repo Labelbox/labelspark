@@ -43,9 +43,9 @@ def create_upload_dict(table:DataFrame, lb_client:labelboxClient, base_client:la
     global_key_to_upload_dict = {data_row_dict['global_key'] : data_row_dict for data_row_dict in upload_list}
     return global_key_to_upload_dict
 
-def create_uploads_column(table:DataFrame, lb_client:labelboxClient, row_data_col:str, 
-                          global_key_col:str, external_id_col:str, metadata_name_key_to_schema:dict, 
-                          metadata_schema_to_name_key:dict, metadata_index:dict={}, divider:str="///"):
+def create_uploads_column(table:DataFrame, lb_client:labelboxClient, row_data_col:str, global_key_col:str, 
+                          external_id_col:str, metadata_name_key_to_schema:dict, metadata_index:dict={}, 
+                          divider:str="///"):
     """ Creates a spark table with an "uploads" that can be queried and uploaded to Labebox
     Args:
         table                       :   Required (pyspark.sql.dataframe.DataFrame) - Spark Table
