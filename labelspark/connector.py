@@ -1,8 +1,8 @@
 from pyspark.sql.functions import udf, lit
 from pyspark.sql.dataframe import DataFrame
 from labelbox.schema.data_row_metadata import DataRowMetadataKind
-from labelbase import Client as labelbaseClient
 from labelbox import Client as labelboxClient
+from labelbase.metadata import get_metadata_schema_to_name_key
 from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
 import json
 
@@ -12,14 +12,13 @@ def check_pyspark():
     except:
         raise RuntimeError(f'labelspark.Client() requires pyspark to be installed - please update your Databricks runtime to support pyspark')
 
-def create_upload_dict(table:DataFrame, lb_client:labelboxClient, base_client:labelbaseClient, row_data_col:str, 
+def create_upload_dict(table:DataFrame, lb_client:labelboxClient, row_data_col:str, 
                        global_key_col:str="", external_id_col:str="", metadata_index:dict={}, local_files:bool=False, 
                        divider:str="///", verbose=False):
     """ Uses UDFs to create a column of data row dictionaries to-be-uploaded, then converts this column into a list
     Args:
         table                       :   Required (pyspark.sql.dataframe.DataFrame) - Spark Table
         lb_client                   :   Required (labelbox.client.Client) - Labelbox Client object
-        base_client                 :   Required (labelbase.client.Client) - Labelbase Client object
         row_data_col                :   Required (str) - Column containing asset URL or file path
         global_key_col              :   Optional (str) - Column name containing the data row global key - defaults to row data
         external_id_col             :   Optional (str) - Column name containing the data row external ID - defaults to global key
@@ -34,7 +33,7 @@ def create_upload_dict(table:DataFrame, lb_client:labelboxClient, base_client:la
     """        
     global_key_col = global_key_col if global_key_col else row_data_col
     external_id_col = external_id_col if external_id_col else global_key_col  
-    metadata_name_key_to_schema = base_client.get_metadata_schema_to_name_key(lb_mdo=False, divider=divider, invert=True) 
+    metadata_name_key_to_schema = get_metadata_schema_to_name_key(client=lb_client, lb_mdo=False, divider=divider, invert=True) 
     uploads_table = create_uploads_column(
         table=table, lb_client=lb_client, row_data_col=row_data_col, global_key_col=global_key_col, external_id_col=external_id_col, 
         metadata_name_key_to_schema=metadata_name_key_to_schema, metadata_index=metadata_index
