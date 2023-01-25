@@ -112,34 +112,34 @@ def __add_metadata_udf(metadata_value_col, data_row_col, metadata_field_name_key
         data_row_col['metadata_fields'].append({"schema_id":metadata_name_key_to_schema[str(metadata_field_name_key)],"value":input_metadata_value})
     return data_row_col
 
-def get_columns_function(table:DataFrame, client=None):
+def get_columns_function(table:DataFrame, extra_client=None):
     """Grabs all column names from a Pandas DataFrame
     Args:
         spark_table         :   Required (pyspark.sql.dataframe.DataFrame) - Spark Table
-        client              :   Ignore this value - relevant to Labelbase library        
+        extra_client        :   Ignore this value - relevant to Labelbase library        
     Returns:
         List of strings corresponding to all column names
     """
     return [str(col[0]) for col in table.dtypes]
 
-def get_unique_values_function(table:DataFrame, column_name, client=None):
+def get_unique_values_function(table:DataFrame, column_name, extra_client=None):
     """ Grabs all unique values from a spark table column as strings
     Args:
         spark_table         :   Required (pyspark.sql.dataframe.DataFrame) - Databricks Spark Table object
         column_name         :   Required (str) - Spark Table column name
-        client              :   Ignore this value - relevant to Labelbase library        
+        extra_client        :   Ignore this value - relevant to Labelbase library        
     Returns:
         List of unique values from a spark table column as strings
     """
     return [str(x.__getitem__(column_name)) for x in table.select(column_name).distinct().collect()]
 
-def add_column_function(table:DataFrame, column_name:str, default_value="", client=None):
+def add_column_function(table:DataFrame, column_name:str, default_value="", extra_client=None):
     """ Adds a column of empty values to an existing Pandas DataFrame
     Args:
         spark_table         :   Required (pyspark.sql.dataframe.DataFrame) - Databricks Spark Table object
         column_name         :   Required (str) - Spark Table column name
         default_value       :   Optional (str) - Value to insert for every row in the newly created column
-        client              :   Ignore this value - relevant to Labelbase library        
+        extra_client        :   Ignore this value - relevant to Labelbase library        
     Returns:
         Your table with a new column given the column_name and default_value  
     """
