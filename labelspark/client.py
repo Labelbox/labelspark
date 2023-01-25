@@ -1,7 +1,8 @@
 from labelspark import connector
 from pyspark.sql.dataframe import DataFrame
 from labelbox import Client as labelboxClient
-from labelbase import Client as labelbaseClient
+from labelbase.metadata import sync_metadata_fields, get_metadata_schema_to_name_key
+from labelbase.uploaders import batch_create_data_rows
 from labelbox.schema.dataset import Dataset as labelboxDataset
 from labelbox.schema.data_row_metadata import DataRowMetadata
 from pyspark.sql.functions import lit, col
@@ -33,7 +34,6 @@ class Client:
     """
     def __init__(self, lb_api_key=None, lb_endpoint='https://api.labelbox.com/graphql', lb_enable_experimental=False, lb_app_url="https://app.labelbox.com"):
         self.lb_client = labelboxClient(lb_api_key, endpoint=lb_endpoint, enable_experimental=lb_enable_experimental, app_url=lb_app_url)
-        self.base_client = labelbaseClient(lb_api_key, lb_endpoint=lb_endpoint, lb_enable_experimental=lb_enable_experimental, lb_app_url=lb_app_url)
         connector.check_pyspark()
     
     def create_data_rows_from_table(
@@ -63,8 +63,8 @@ class Client:
         """    
         
         # Ensure all your metadata_index keys are metadata fields in Labelbox and that your Pandas DataFrame has all the right columns
-        table = self.base_client.sync_metadata_fields(
-            table=table, get_columns_function=connector.get_columns_function, add_column_function=connector.add_column_function, 
+        table = sync_metadata_fields(
+            client=self.lb_client, table=table, get_columns_function=connector.get_columns_function, add_column_function=connector.add_column_function, 
             get_unique_values_function=connector.get_unique_values_function, metadata_index=metadata_index, verbose=verbose
         )
         
@@ -89,8 +89,8 @@ class Client:
                 return {"upload_results" : [], "conversion_errors" : errors}
                 
         # Upload your data rows to Labelbox
-        upload_results = self.base_client.batch_create_data_rows(
-            dataset=lb_dataset, global_key_to_upload_dict=global_key_to_upload_dict, 
+        upload_results = batch_create_data_rows(
+            client=self.lb_client, dataset=lb_dataset, global_key_to_upload_dict=global_key_to_upload_dict, 
             skip_duplicates=skip_duplicates, divider=divider, verbose=verbose
         )
         
@@ -107,8 +107,8 @@ class Client:
         Returns:
             Spark Table - pyspark.sql.dataframe.Dataframe objet with columns "data_row_id", "global_key", "external_id", "row_data" and optional metadata fields as columns
         """        
-        table = self.base_client.sync_metadata_fields(
-            table=False, get_columns_function=connector.get_columns_function, add_column_function=connector.add_column_function, 
+        table = sync_metadata_fields(
+            client=self.lb_client, table=False, get_columns_function=connector.get_columns_function, add_column_function=connector.add_column_function, 
             get_unique_values_function=connector.get_unique_values_function, metadata_index=metadata_index, verbose=verbose
         )                         
         starttime = datetime.now()
@@ -118,7 +118,7 @@ class Client:
         if verbose:
             print(f'Labelbox data row export complete\n Start Time: {starttime}\n End Time: {endtime}\n Export Time: {endtime-starttime}\nData rows to create in table: {len(data_rows_list)}')
         starttime = datetime.now()
-        metadata_schema_to_name_key = self.base_client.get_metadata_schema_to_name_key()
+        metadata_schema_to_name_key = get_metadata_schema_to_name_key(client=self.lb_client)
         # Create empty dict where {key= column name : value= list of values for column} (in order)
         table_dict = {"data_row_id" : [], "global_key" : [], "external_id" : [], "row_data" : []}
         if metadata_fields:
@@ -162,7 +162,7 @@ class Client:
         # Export data row metadata from Labelbox through global keys
         starttime = datetime.now()
         lb_mdo = self.lb_client.get_data_row_metadata_ontology()
-        metadata_schema_to_name_key = self.base_client.get_metadata_schema_to_name_key(lb_mdo=lb_mdo)
+        metadata_schema_to_name_key = get_metadata_schema_to_name_key(client=self.lb_client, lb_mdo=lb_mdo)
         ## Either use global_keys provided or all the global keys in the provided global_key column 
         global_keys = global_keys_list if global_keys_list else connector.get_unique_values(table, global_key_col)
         ## Grab data row IDs with global_key list
@@ -212,8 +212,8 @@ class Client:
         # Export data row metadata from Labelbox through global keys        
         starttime = datetime.now()
         lb_mdo = self.lb_client.get_data_row_metadata_ontology()
-        metadata_schema_to_name_key = self.base_client.get_metadata_schema_to_name_key(lb_mdo=lb_mdo)
-        metadata_name_key_to_schema = self.base_client.get_metadata_schema_to_name_key(lb_mdo=lb_mdo, invert=True)
+        metadata_schema_to_name_key = get_metadata_schema_to_name_key(client=self.lb_client, lb_mdo=lb_mdo)
+        metadata_name_key_to_schema = get_metadata_schema_to_name_key(client=self.lb_client, lb_mdo=lb_mdo, invert=True)
         ## Either use global_keys provided or all the global keys in the provided global_key column 
         global_keys = global_keys_list if global_keys_list else connector.get_unique_values(spark_table, global_key_col)
         ## Grab data row IDs with global_key list
