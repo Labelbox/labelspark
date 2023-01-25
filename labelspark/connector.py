@@ -116,7 +116,7 @@ def get_columns_function(table:DataFrame, client=None):
     """Grabs all column names from a Pandas DataFrame
     Args:
         spark_table         :   Required (pyspark.sql.dataframe.DataFrame) - Spark Table
-        extra_client        :   Ignore this value - relevant to Labelbase library
+        client              :   Ignore this value - relevant to Labelbase library        
     Returns:
         List of strings corresponding to all column names
     """
@@ -127,7 +127,7 @@ def get_unique_values_function(table:DataFrame, column_name, client=None):
     Args:
         spark_table         :   Required (pyspark.sql.dataframe.DataFrame) - Databricks Spark Table object
         column_name         :   Required (str) - Spark Table column name
-        extra_client        :   Ignore this value - relevant to Labelbase library        
+        client              :   Ignore this value - relevant to Labelbase library        
     Returns:
         List of unique values from a spark table column as strings
     """
@@ -139,7 +139,7 @@ def add_column_function(table:DataFrame, column_name:str, default_value="", clie
         spark_table         :   Required (pyspark.sql.dataframe.DataFrame) - Databricks Spark Table object
         column_name         :   Required (str) - Spark Table column name
         default_value       :   Optional (str) - Value to insert for every row in the newly created column
-        extra_client        :   Ignore this value - relevant to Labelbase library        
+        client              :   Ignore this value - relevant to Labelbase library        
     Returns:
         Your table with a new column given the column_name and default_value  
     """
