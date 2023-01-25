@@ -25,7 +25,6 @@ class Client:
         lb_app_url                  :   Optional (str) - Labelbox web app URL
     Attributes:
         lb_client                   :   labelbox.client.Client object
-        base_client                 :   labelbase.Client object
     Key Functions:
         create_data_rows_from_table :   Creates Labelbox data rows (and metadata) given a Databricks Spark table
         create_table_from_dataset   :   Creates a Databricks Spark table given a Labelbox dataset
@@ -74,7 +73,7 @@ class Client:
         
         # Create a dictionary where {key=global_key : value=labelbox_upload_dictionary} - this is unique to Pandas
         global_key_to_upload_dict, conversion_errors = connector.create_upload_dict(
-            table=table, lb_client=self.lb_client, base_client=self.base_client,
+            table=table, lb_client=self.lb_client,
             row_data_col=row_data_col, global_key_col=global_key_col, external_id_col=external_id_col, 
             metadata_index=metadata_index, local_files=local_files, divider=divider, verbose=verbose
         )
