@@ -2,7 +2,7 @@ from labelspark import connector
 from pyspark.sql.dataframe import DataFrame
 from labelbox import Client as labelboxClient
 from labelbase.metadata import sync_metadata_fields, get_metadata_schema_to_name_key
-from labelbase.uploaders import batch_create_data_rows
+from labelbase.uploader import batch_create_data_rows
 from labelbox.schema.dataset import Dataset as labelboxDataset
 from labelbox.schema.data_row_metadata import DataRowMetadata
 from pyspark.sql.functions import lit, col
