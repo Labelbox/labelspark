@@ -86,10 +86,10 @@ class Client:
             else:
                 print(f'Data row upload will not continue')  
                 return {"upload_results" : [], "conversion_errors" : errors}
-                
+                             
         # Upload your data rows to Labelbox
         upload_results = batch_create_data_rows(
-            client=self.lb_client, dataset=lb_dataset, global_key_to_upload_dict=global_key_to_upload_dict, 
+            client=self.lb_client, dataset_to_global_key_to_upload_dict={lb_dataset.uid:global_key_to_upload_dict}, 
             skip_duplicates=skip_duplicates, divider=divider, verbose=verbose
         )
         
