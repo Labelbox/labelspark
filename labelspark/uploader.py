@@ -169,7 +169,7 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
                 )
             )    
     # Run a UDF to add annotations, if applicable 
-    if (annotation_index!={}) and (project_id_to_ontology_index!={}) and (upload_method in ["mal", "import"])::
+    if (annotation_index!={}) and (project_id_to_ontology_index!={}) and (upload_method in ["mal", "import"]):
         annotation_udf = udf(create_annotations, upload_schema) # Create a UDF
         for annotation_column_name in annotation_index: # Run this UDF for each attachment column name in the attachment index
             top_level_feature_name = annotation_index[annotation_column_name]
