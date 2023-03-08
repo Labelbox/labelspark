@@ -196,7 +196,7 @@ def create_upload_dicts(row_data_col, global_key_col, external_id_col, metadata_
         projectId = ""    
     if dataset_id_col_name:
         datasetId = dataset_id_col_value
-    else dataset_id_str:
+    else:
         datasetId = dataset_id_str        
     data_row_dict = {
         "row_data" : row_data_col, "external_id" : external_id_col, "global_key" : global_key_col,
