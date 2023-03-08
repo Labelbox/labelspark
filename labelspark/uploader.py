@@ -177,7 +177,7 @@ def create_uploads_column(client:labelboxClient, table:table:pyspark.sql.datafra
             annotation_type = annotation_column_name.split(divider)[1]
             table = table.withColumn(
               'uploads', annotation_udf(
-                  ###
+                  "uploads", top_level_feature_name, annotation_column_name, lit(mask_method), project_id_to_ontology_index_bytes, lit(divider)
               )
             )        
     return table
@@ -225,20 +225,19 @@ def create_attachments(uploads_col, attachment_type, attachment_col_value):
         uploads_col["data_row"]["attachments"].append({"type" : attachment_type, "value" : attachment_col_value})
     return uploads_col  
 
-def create_annotations(uploads_col, project_id_to_ontology_index_bytes, divider):
+def create_annotations(uploads_col, top_level_feature_name, annotations, mask_method, project_id_to_ontology_index_bytes, divider):
     """ Function to-be-wrapped in a UDF that adds attachments to your upload dict
     """  
     project_id_to_ontology_index = json.loads(project_id_to_ontology_index_bytes)
     ontology_index = project_id_to_ontology_index[uploads_col["project_id"]]
     uploads_col["annotations"].extend(
         create_ndjsons(
-            top_level_name=annotation_index[column_name],
-            annotation_inputs=row_dict[column_name],
+            top_level_name=top_level_feature_name,
+            annotation_inputs=annotations,
             ontology_index=ontology_index,
             mask_method=mask_method,
             divider=divider    
         )
     )
     return uploads_col  
-  
   
