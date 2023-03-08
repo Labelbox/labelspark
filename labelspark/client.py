@@ -1,20 +1,11 @@
-from labelspark import connector
-from pyspark.sql.dataframe import DataFrame
 from labelbox import Client as labelboxClient
-from labelbase.metadata import sync_metadata_fields, get_metadata_schema_to_name_key
-from labelbase.uploader import batch_create_data_rows
 from labelbox.schema.dataset import Dataset as labelboxDataset
-from labelbox.schema.data_row_metadata import DataRowMetadata
-from pyspark.sql.functions import lit, col
-import json
-from datetime import datetime
-
-try:
-  import pyspark.pandas as pd
-  needs_koalas = False
-except:
-  import databricks.koalas as pd
-  needs_koalas = True 
+from labelspark.uploader import create_upload_dict
+from labelspark.connector import check_pyspark, get_col_names, get_unique_values
+from labelbase.connector import validate_columns, determine_actions
+from labelbase.uploader import create_global_key_to_data_row_dict, batch_create_data_rows, batch_rows_to_project, batch_upload_annotations
+from labelbase.downloader import export_and_flatten_labels
+import pyspark
 
 class Client:
     """ A Databricks Client, containing a Labelbox Client, to-be-run a Databricks notebook
@@ -33,67 +24,140 @@ class Client:
     """
     def __init__(self, lb_api_key=None, lb_endpoint='https://api.labelbox.com/graphql', lb_enable_experimental=False, lb_app_url="https://app.labelbox.com"):
         self.lb_client = labelboxClient(lb_api_key, endpoint=lb_endpoint, enable_experimental=lb_enable_experimental, app_url=lb_app_url)
-        connector.check_pyspark()
+        check_pyspark()
     
     def create_data_rows_from_table(
-        self, table:DataFrame, lb_dataset:labelboxDataset, row_data_col:str, global_key_col:str="", external_id_col:str="",
-        metadata_index:dict={}, local_files:bool=False, skip_duplicates:bool=False, verbose:bool=False, divider="___"):
+        self, table:pyspark.sql.dataframe.DataFrame, dataset_id:str="", project_id:str="", priority:int=5, 
+        upload_method:str="", skip_duplicates:bool=False, mask_method:str="png", verbose:bool=False, divider="///"):
         """ Creates Labelbox data rows given a Pandas table and a Labelbox Dataset
         Args:
-            table           :   Required (pyspark.sql.dataframe.DataFrame) - Spark Table
-            lb_dataset      :   Required (labelbox.schema.dataset.Dataset) - Labelbox dataset to add data rows to            
-            row_data_col    :   Required (str) - Column containing asset URL or file path
-            local_files     :   Required (bool) - Determines how to handle row_data_col values
-                                    If True, treats row_data_col values as file paths uploads the local files to Labelbox
-                                    If False, treats row_data_col values as urls (assuming delegated access is set up)
-            global_key_col  :   Optional (str) - Column name containing the data row global key - defaults to row_data_col
-            external_id_col :   Optional (str) - Column name containing the data row external ID - defaults to global_key_col
-            metadata_index  :   Required (dict) - Dictionary where {key=column_name : value=metadata_type}
-                                    metadata_type must be either "enum", "string", "datetime" or "number"
-            skip_duplicates :   Optional (bool) - Determines how to handle if a global key to-be-uploaded is already in use
-                                    If True, will skip duplicate global_keys and not upload them
-                                    If False, will generate a unique global_key with a suffix "_1", "_2" and so on
-            verbose         :   Required (bool) - If True, prints details about code execution; if False, prints minimal information
-            divider         :   Optional (str) - String delimiter for all name keys generated for parent/child schemas
-        Returns:
-            A dictionary with "upload_results" and "conversion_errors" keys
-            - "upload_results" key pertains to the results of the data row upload itself
-            - "conversion_errors" key pertains to any errors related to data row conversion
-        """    
-        
-        # Ensure all your metadata_index keys are metadata fields in Labelbox and that your Pandas DataFrame has all the right columns
-        table = sync_metadata_fields(
-            client=self.lb_client, table=table, get_columns_function=connector.get_columns_function, add_column_function=connector.add_column_function, 
-            get_unique_values_function=connector.get_unique_values_function, metadata_index=metadata_index, verbose=verbose
+            table               :   Required (pyspark.sql.dataframe.DataFrame) - Spark Table
+            dataset_id          :   Required (str) - Labelbox dataset ID to add data rows to - only necessary if no "dataset_id" column exists            
+            project_id          :   Required (str) - Labelbox project ID to add data rows to - only necessary if no "project_id" column exists
+            priority            :   Optinoal (int) - Between 1 and 5, what priority to give to data row batches sent to projects                             
+            upload_method       :   Optional (str) - Either "mal" or "import" - required to upload annotations (otherwise leave as "")
+            skip_duplicates     :   Optional (bool) - Determines how to handle if a global key to-be-uploaded is already in use
+                                        If True, will skip duplicate global_keys and not upload them
+                                        If False, will generate a unique global_key with a suffix {divider} + "1", "2" and so on
+            mask_method         :   Optional (str) - Specifies your input mask data format
+                                        - "url" means your mask is an accessible URL (must provide color)
+                                        - "array" means your mask is a numpy array (must provide color)
+                                        - "png" means your mask value is a png-string                                           
+            verbose             :   Optional (bool) - If True, prints details about code execution; if False, prints minimal information               
+            divider             :   Optional (str) - String delimiter for schema name keys and suffix added to duplocate global keys
+        """
+        check_pyspark()
+        # Create/identify the following values:
+            # row_data_col      : column with name "row_data"
+            # global_key_col    : column with name "global_key" - defaults to row_data_col
+            # external_id_col   : column with name "external_id" - defaults to global_key_col
+            # project_id_col    : column with name "project_id" - defaults to ""
+            # dataset_id_col    : column with name "dataset_id" - defaults to ""
+            # external_id_col   : column with name "external_id" - defaults to global_key_col        
+            # metadata_index    : Dictonary where {key=metadata_field_name : value=metadata_type} - defaults to {}
+            # attachment_index  : Dictonary where {key=column_name : value=attachment_type} - defaults to {}
+            # annotation_index  : Dictonary where {key=column_name : value=top_level_feature_name} - defaults to {}
+        row_data_col, global_key_col, external_id_col, project_id_col, dataset_id_col, metadata_index, attachment_index, annotation_index = validate_columns(
+            client=self.lb_client, table=table,
+            get_columns_function=get_col_names,
+            get_unique_values_function=get_unique_values,
+            divider=divider, verbose=verbose, extra_client=None
         )
         
-        # If df returns False, the sync failed - terminate the upload
-        if type(table) == bool:
-            return {"upload_results" : [], "conversion_errors" : []}
         
-        # Create a dictionary where {key=global_key : value=labelbox_upload_dictionary} - this is unique to Pandas
-        global_key_to_upload_dict, conversion_errors = connector.create_upload_dict(
-            table=table, lb_client=self.lb_client,
+        # Determine if we're batching and/or uploading annotations
+        batch_action, annotate_action = determine_actions(
+            dataset_id=dataset_id, dataset_id_col=dataset_id_col, 
+            project_id=project_id, project_id_col=project_id_col, 
+            upload_method=upload_method, annotation_index=annotation_index
+        )
+        
+        # Create an upload dictionary where {
+            # dataset_id : {
+                # global_key : {
+                    # "data_row" : {}, -- This is your data row upload as a dictionary
+                    # "project_id" : "", -- This batches data rows to projects, if applicable
+                    # "annotations" : [] -- List of annotations for a given data row, if applicable
+                # }
+            # }
+        # }
+        # This uniforms the upload to use labelbase - Labelbox base code for best practices
+        upload_dict = create_upload_dict(
+            client=self.lb_client, table=table, 
             row_data_col=row_data_col, global_key_col=global_key_col, external_id_col=external_id_col, 
-            metadata_index=metadata_index, local_files=local_files, divider=divider, verbose=verbose
-        )
-        
-        # If there are conversion errors, let the user know; if there are no successful conversions, terminate the upload
-        if conversion_errors:
-            print(f'There were {len(conversion_errors)} errors in creating your upload list - see result["conversion_errors"] for more information')
-            if global_key_to_upload_dict:
-                print(f'Data row upload will continue')
-            else:
-                print(f'Data row upload will not continue')  
-                return {"upload_results" : [], "conversion_errors" : errors}
-                             
-        # Upload your data rows to Labelbox
-        upload_results = batch_create_data_rows(
-            client=self.lb_client, dataset_to_global_key_to_upload_dict={lb_dataset.uid:global_key_to_upload_dict}, 
+            dataset_id_col=dataset_id_col, dataset_id=dataset_id, 
+            project_id_col=project_id_col, project_id=project_id,
+            metadata_index=metadata_index, attachment_index=attachment_index, annotation_index=annotation_index,
+            upload_method=upload_method, mask_method=mask_method, divider=divider, verbose=verbose
+        )      
+                
+        # Upload your data rows to Labelbox - update upload_dict if global keys are modified during upload
+        data_row_upload_results, upload_dict = batch_create_data_rows(
+            client=self.lb_client, upload_dict=upload_dict, 
             skip_duplicates=skip_duplicates, divider=divider, verbose=verbose
         )
         
-        return {"upload_results" : upload_results, "conversion_errors" : conversion_errors}
+        # Bath to project attempt
+        if batch_action: 
+            try:
+                # Create a dictionary where {key=global_key : value=data_row_id}
+                global_keys_list = []
+                for dataset_id in upload_dict.keys():
+                    for global_key in upload_dict[dataset_id].keys():
+                        global_keys_list.append(global_key)
+                global_key_to_data_row_id = create_global_key_to_data_row_dict(
+                    client=self.lb_client, global_keys=global_keys_list
+                )     
+                # Create batch dictionary where {key=project_id : value=[data_row_ids]}   
+                project_id_to_batch_dict = {}                
+                for dataset_id in upload_dict:
+                    for global_key in upload_dict[dataset_id].keys():                    
+                        project_id = upload_dict[dataset_id][global_key]["project_id"]
+                        if project_id:
+                            if project_id not in project_id_to_batch_dict.keys():
+                                project_id_to_batch_dict[project_id] = []
+                            project_id_to_batch_dict[project_id].append(global_key_to_data_row_id[global_key])
+                # Labelbase command to batch data rows to projects
+                batch_to_project_results = batch_rows_to_project(
+                    client=self.lb_client, project_id_to_batch_dict=project_id_to_batch_dict, 
+                    priority=priority, verbose=verbose
+                )
+            except Exception as e:
+                annotate_action = False
+                batch_to_project_results = e
+        else:
+            batch_to_project_results = []                
+        
+        # Annotation upload attempt
+        if annotate_action:
+            try:               
+                # Create batch dictionary where {key=project_id : value=[data_row_ids]}
+                project_id_to_upload_dict = {}
+                for dataset_id in upload_dict.keys():
+                    for global_key in upload_dict[dataset_id].keys():
+                        project_id = upload_dict[dataset_id][global_key]["project_id"]
+                        annotations_no_data_row_id = upload_dict[dataset_id][global_key]["annotations"]
+                        if project_id not in project_id_to_upload_dict.keys():
+                            project_id_to_upload_dict[project_id] = []
+                        if annotations_no_data_row_id: # For each annotation in the list, add the data row ID and add it to your annotation upload dict
+                            for annotation in annotations_no_data_row_id:
+                                annotation_data_row_id = annotation
+                                annotation_data_row_id["dataRow"] = {"id" : global_key_to_data_row_id[global_key]}
+                                project_id_to_upload_dict[project_id].append(annotation_data_row_id)
+                # Labelbase command to upload annotations to projects
+                annotation_upload_results = batch_upload_annotations(
+                    client=self.lb_client, project_id_to_upload_dict=project_id_to_upload_dict, how=upload_method, verbose=verbose
+                )
+            except Exception as e:
+                annotation_upload_results = e
+        else:
+            annotation_upload_results = []              
+            
+        return {
+            "data_row_upload_results" : data_row_upload_results, 
+            "batch_to_project_results" : batch_to_project_results,
+            "annotation_upload_results" : annotation_upload_results
+        }
 
     def create_table_from_dataset(self, lb_dataset:labelboxDataset, metadata_index:dict={}, verbose:bool=False, divider:str="///"):
         """ Creates a Spark Table from a Labelbox dataset, optional metadata_fields will create 1 column per field name in list
