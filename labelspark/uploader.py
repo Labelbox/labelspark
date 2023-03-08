@@ -39,7 +39,7 @@ from labelbase.metadata import get_metadata_schema_to_name_key, process_metadata
 from labelbase.ontology import get_ontology_schema_to_name_path
 from labelbase.annotate import create_ndjsons
 
-def create_upload_dict(client:labelboxClient, table:table:pyspark.sql.dataframe.DataFrame,
+def create_upload_dict(client:labelboxClient, table:pyspark.sql.dataframe.DataFrame,
                        row_data_col:str, global_key_col:str, external_id_col:str, 
                        dataset_id_col:str, dataset_id:str,
                        project_id_col:str, project_id:str,
@@ -99,7 +99,7 @@ def create_upload_dict(client:labelboxClient, table:table:pyspark.sql.dataframe.
         }          
     return upload_dict
 
-def create_uploads_column(client:labelboxClient, table:table:pyspark.sql.dataframe.DataFrame, table_dict:dict, 
+def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.DataFrame,
                           row_data_col:str, global_key_col:str, external_id_col:str, 
                           dataset_id_col:str, dataset_id:str, project_id_col:str, project_id:str,
                           metadata_index:dict, attachment_index:dict, annotation_index:dict,
