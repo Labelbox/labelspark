@@ -200,7 +200,7 @@ def create_upload_dicts(row_data_col, global_key_col, external_id_col, metadata_
         datasetId = dataset_id_str        
     data_row_dict = {
         "row_data" : row_data_col, "external_id" : external_id_col, "global_key" : global_key_col,
-        "metadata_fields" : [{"schema_id" : metadata_name_key_to_schema["lb_integration_source"], "value" : "Databricks"}]},
+        "metadata_fields" : [{"schema_id" : metadata_name_key_to_schema["lb_integration_source"], "value" : "Databricks"}],
         "attachments" : []
     }
     return { "data_row" : data_row_dict, "project_id" : projectId, "dataset_id" : datasetId, "annotations" : [] }
