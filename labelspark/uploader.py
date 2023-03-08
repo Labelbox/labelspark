@@ -1,104 +1,244 @@
+"""
+uploader.py holds the function create_upload_dict() -- which creates the following style dictionary:
+{
+    dataset_id : {
+        global_key : {
+            "data_row" : {}, -- This is your data row upload as a dictionary
+            "project_id" : "", -- This batches data rows to projects, if applicable
+            "annotations" : [] -- List of annotations for a given data row, if applicable -- note this does not contain required data row ID information
+        }
+        global_key : {
+            "data_row" : {},
+            "project_id" : "",
+            "annotations" : []
+        }
+    },
+    dataset_id : {
+        global_key : {
+            "data_row" : {},
+            "project_id" : "",
+            "annotations" : []
+        }
+        global_key : {
+            "data_row" : {},
+            "project_id" : "",
+            "annotations" : []
+        }
+    }
+}
+
+This uniforms input formats so that they can leverage labelbase - Labelbox base code for best practices
+"""
+
 import pyspark
+from pyspark.sql.functions import lit, udf
+from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
 from labelbox import Client as labelboxClient
-from labelbase.metadata import get_metadata_schema_to_name_key
+from labelspark.connector import get_table_length, get_unique_values
+from labelbase.metadata import get_metadata_schema_to_name_key, process_metadata_value
+from labelbase.ontology import get_ontology_schema_to_name_path
+from labelbase.annotate import create_ndjsons
 
-
-def create_upload_dict(table:pyspark.sql.dataframe.DataFrame, lb_client:labelboxClient, row_data_col:str, 
-                       global_key_col:str="", external_id_col:str="", metadata_index:dict={}, 
-                       divider:str="///", verbose=False):
+def create_upload_dict(client:labelboxClient, table:table:pyspark.sql.dataframe.DataFrame, table_dict:dict, 
+                       row_data_col:str, global_key_col:str, external_id_col:str, 
+                       dataset_id_col:str, dataset_id:str,
+                       project_id_col:str, project_id:str,
+                       metadata_index:dict, attachment_index:dict, annotation_index:dict,
+                       upload_method:str, mask_method:str, divider:str, verbose:bool, extra_client:bool=None):  
     """ Uses UDFs to create a column of data row dictionaries to-be-uploaded, then converts this column into a list
     Args:
-        table                       :   Required (pyspark.sql.dataframe.DataFrame) - Spark Table
-        lb_client                   :   Required (labelbox.client.Client) - Labelbox Client object
-        row_data_col                :   Required (str) - Column containing asset URL or file path
-        global_key_col              :   Optional (str) - Column name containing the data row global key - defaults to row data
-        external_id_col             :   Optional (str) - Column name containing the data row external ID - defaults to global key
-        metadata_index              :   Optional (dict) - Dictionary where {key=column_name : value=metadata_type}
-                                            metadata_type must be either "enum", "string", "datetime" or "number"
-        divider                     :   Optional (str) - String delimiter for all name keys generated for parent/child schemas
-        verbose                     :   Optional (bool) - If True, prints details about code execution; if False, prints minimal information
-    Returns:
-        Two values:
-        - global_key_to_upload_dict - Dictionary where {key=global_key : value=data row dictionary in upload format}
-        - errors - List of dictionaries containing conversion error information; see connector.create_data_rows() for more information
-    """        
-    global_key_col = global_key_col if global_key_col else row_data_col
-    external_id_col = external_id_col if external_id_col else global_key_col  
-    metadata_name_key_to_schema = get_metadata_schema_to_name_key(client=lb_client, lb_mdo=False, divider=divider, invert=True) 
-    uploads_table = create_uploads_column(
-        table=table, lb_client=lb_client, row_data_col=row_data_col, global_key_col=global_key_col, external_id_col=external_id_col, 
-        metadata_name_key_to_schema=metadata_name_key_to_schema, metadata_index=metadata_index
-    )
-    upload_list = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
-    global_key_to_upload_dict = {data_row_dict['global_key'] : data_row_dict for data_row_dict in upload_list}
-    return global_key_to_upload_dict
-
-def create_uploads_column(table:DataFrame, lb_client:labelboxClient, row_data_col:str, global_key_col:str, 
-                          external_id_col:str, metadata_name_key_to_schema:dict, metadata_index:dict={}, 
-                          divider:str="///"):
-    """ Creates a spark table with an "uploads" that can be queried and uploaded to Labebox
-    Args:
-        table                       :   Required (pyspark.sql.dataframe.DataFrame) - Spark Table
-        lb_client                   :   Required (labelbox.client.Client) - Labelbox Client object
-        row_data_col                :   Required (str) - Column containing asset URL or file path
+        client                      :   Required (labelbox.client.Client) - Labelbox Client object        
+        table                       :   Required (pandas.core.frame.DataFrame) - Pandas DataFrame                
+        table_dict                  :   Required (dict) - Pandas DataFrame as dict with df.to_dict("records")
+        row_data_col                :   Required (str) - Column containing asset URL or raw text
         global_key_col              :   Required (str) - Column name containing the data row global key - defaults to row data
         external_id_col             :   Required (str) - Column name containing the data row external ID - defaults to global key
-        metadata_name_key_to_schema :   Required (dict) - Dictionary where {key=metadata_field_name_key : value=metadata_schema_id}
-        metadata_index              :   Optional (dict) - Dictionary where {key=column_name : value=metadata_type}
-                                            metadata_type must be either "enum", "string", "datetime" or "number"
-        divider                     :   Optional (str) - String delimiter for all name keys generated for parent/child schemas
+        dataset_id_col              :   Required (str) - Column name containing the dataset ID to add data rows to
+        dataset_id                  :   Required (str) - Labelbox dataset ID to add data rows to - only necessary if no "dataset_id" column exists            
+        project_id_col              :   Required (str) - Column name containing the project ID to batch a given row to        
+        project_id                  :   Required (str) - Labelbox project ID to add data rows to - only necessary if no "project_id" column exists
+        metadata_index              :   Required (dict) - Dictonary where {key=metadata_field_name : value=metadata_type}
+        attachment_index            :   Required (dict) - Dictonary where {key=column_name : value=attachment_type}
+        annotation_index            :   Required (dict) - Dictonary where {key=column_name : value=top_level_feature_name}
+        upload_method               :   Required (str) - Either "mal" or "import" - required to upload annotations (otherwise leave as "")
+        mask_method                 :   Optional (str) - Specifies your input mask data format
+                                            - "url" means your mask is an accessible URL (must provide color)
+                                            - "array" means your mask is a numpy array (must provide color)
+                                            - "png" means your mask value is a png-string                 
+        divider                     :   Required (str) - String delimiter for all name keys generated
+        verbose                     :   Required (bool) - If True, prints details about code execution; if False, prints minimal information
+        extra_client                :   Ignore this value - necessary for other labelbase integrations                
     Returns:
-        Updated version of the input `spark_table` with an `uploads` which is a dictionary of data rows to-be-uploaded to Labelbox
-    Uses:
-        __create_upload_data_row_values
-        attach_metadata_to_data_row_values
+        - global_key_to_upload_dict - Dictionary in the above format
+    """     
+    # Check that global key column is entirely unique values
+    table_length = get_table_length(table=table, extra_client=extra_client)
+    if verbose:
+        print(f'Creating upload list - {table_length} rows in Pandas DataFrame')
+    unique_global_key_count = len(get_unique_values(table=table, col=global_key_col, extra_client=extra_client))
+    if table_length != unique_global_key_count:
+        print(f"Warning: Your global key column is not unique - upload will resume, only uploading 1 data row per unique global key")      
+    # Initiate your upload dict, where they keys are all your dataset IDs
+    if dataset_id:
+        upload_dict = {dataset_id : {}}
+    else:
+        upload_dict = {id : {} for id in get_unique_values(table=table, col=dataset_id_col)}
+    # Create your column of upload dict values using UDFs
+    uploads_table = create_uploads_column(
+        client=lb_client, table=table, row_data_col=row_data_col, global_key_col=global_key_col, external_id_col=external_id_col, 
+        dataset_id_col, dataset_id=dataset_id, project_id_col=project_id_col, project_id=project_id, metadata_index=metadata_index, 
+        attachment_index=attachment_index, annotation_index=annotation_index, project_id_to_ontology_index=project_id_to_ontology_index, 
+        metadata_name_key_to_schema=metadata_name_key_to_schema, upload_method=upload_method, mask_method=mask_method, divider=divider, verbose=verbose 
+    )
+    # Query your uploads column and create your upload dict
+    res = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
+    for x in res:           
+        upload_dict[x["dataset_id"]][x["data_row"]["global_key"]] = {
+            "data_row" : x["data_row"],
+            "project_id" : x["project_id"],
+            "annotations" : x["annotations"]
+        }          
+    return upload_dict
+
+def create_uploads_column(client:labelboxClient, table:table:pyspark.sql.dataframe.DataFrame, table_dict:dict, 
+                          row_data_col:str, global_key_col:str, external_id_col:str, 
+                          dataset_id_col:str, dataset_id:str, project_id_col:str, project_id:str,
+                          metadata_index:dict, attachment_index:dict, annotation_index:dict,
+                          upload_method:str, mask_method:str, divider:str, verbose:bool, extra_client:bool=None):
+    """ Takes a table and returns a new table with an "uploads" column where the values are
+    {
+        "data_row" : {
+            "global_key" : "",                    |
+            "row_data" : "",                      |
+            "external_id" : "",                   | ---- This is your data row upload as a dictionary
+            "metadata_fields" : [],               |
+            "attachments" : []                    |
+        }, 
+        "dataset_id" : "" -- This is the dataset ID to upload this data row to
+        "project_id" : "", -- This batches data rows to projects, if applicable
+        "annotations" : [] -- List of annotations for a given data row, if applicable (note that data row ID is not included)
+    }
     """
-    # Create your column's syntax - this is chosen to mimic Labelbox's import format for data row dictionaries
+    # Get dictionary where {key=project_id : value=ontology_index} -- index created by labelbase -- if project IDs are available
+    if project_id != "":
+        project_ids = [project_id]
+    elif project_id_col != "":
+        project_ids = get_unique_values(table=table, col=project_id_col, extra_client=extra_client)
+    else:
+        project_ids = []
+    project_id_to_ontology_index = {}        
+    if (project_ids!=[]) and (annotation_index!={}) and (upload_method in ["mal", "import"]): # If we're uploading annotations
+        for projectId in project_ids:
+            ontology = client.get_project(projectId).ontology()
+            project_id_to_ontology_index[projectId] = get_ontology_schema_to_name_path(ontology=ontology,divider=divider,invert=True,detailed=True)    
+    # Create your upload column's syntax
     upload_schema = StructType([
-        StructField("row_data", StringType()),
-        StructField("global_key", StringType()),
-        StructField("external_id", StringType()),
-        StructField("metadata_fields", ArrayType(MapType(StringType(), StringType(), True)))
-    ])            
-    # Run your __create_upload_data_row_values UDF, creating a new table in the process
-    create_data_rows_udf = udf(__create_data_rows_udf, upload_schema)
-    table = table.withColumn('uploads', create_data_rows_udf(row_data_col, global_key_col, external_id_col, lit(json.dumps(metadata_name_key_to_schema))))
-    # Run your UDF, updating the existing uploads column with metadata values
+        StructField(
+            "data_row", StructType([
+                StructField("row_data", StringType()), StructField("global_key", StringType()), StructField("external_id", StringType()),
+                StructField("metadata_fields", ArrayType(MapType(StringType(), StringType(), True))),
+                StructField("attachments", ArrayType(MapType(StringType(), StringType(), True)))
+            ])
+        ),
+        StructField("dataset_id", StringType()), StructField("project_id", StringType()),
+        StructField("annotations", ArrayType(MapType(StringType(), StringType(), True)))    
+    ])       
+    # Run a UDF to create row values
+    uplads_udf = udf(create_upload_dicts, upload_schema)    
+    table = table.withColumn(
+      'uploads', uplads_udf(
+          row_data_col, global_key_col, external_id_col, lit(json.dumps(metadata_name_key_to_schema)),
+          lit(project_id_col), project_id_col, project_id, lit(dataset_id_col), dataset_id_col, dataset_id
+      )
+    )
+    # Run a UDF to add attachments, if applicable  
+    if attachment_index:
+        attachments_udf = udf(create_attachments, upload_schema)  # Create a UDF
+        for attachment_column_name in attachment_index: # Run this UDF for each attachment column in the attachment index
+            table = table.withColumn('uploads', attachments_udf("uploads", lit(attachment_index[attachment_column_name]), attachment_column_name))        
+    # Run a UDF to add metadata, if applicable
     if metadata_index:
-        add_metadata_udf = udf(__add_metadata_udf, upload_schema)
-        for column_name in metadata_index:
-            table = table.withColumn('uploads', add_metadata_udf(column_name, 'uploads', lit(column_name), lit(json.dumps(metadata_name_key_to_schema)), lit(json.dumps(metadata_index)), lit(divider)))
+        metadata_udf = udf(create_metadata, upload_schema) # Create a UDF
+        x = get_metadata_schema_to_name_key(client=client, divider=divider, invert=True) # Get metadata dict where {key=name : value=schema_id}
+        metadata_name_key_to_schema_bytes = json.dumps(x) # Convert reference dict to bytes
+        for metadata_field_name in metadata_index: # Run this UDF for each metadata field name in the metadata index
+            metadata_type = metadata_index[metadata_field_name]
+            metadata_column_name = f"metadata{divider}{metadata_type}{divider}{metadata_field_name}"
+            table = table.withColumn(
+                'uploads', metadata_udf(
+                    "uploads", lit(metadata_field_name), metadata_column_name, lit(metadata_type), metadata_name_key_to_schema_bytes, lit(divider)
+                )
+            )    
+    # Run a UDF to add annotations, if applicable 
+    if (annotation_index!={}) and (project_id_to_ontology_index!={}) and (upload_method in ["mal", "import"])::
+        annotation_udf = udf(create_annotations, upload_schema) # Create a UDF
+        for annotation_column_name in annotation_index: # Run this UDF for each attachment column name in the attachment index
+            top_level_feature_name = annotation_index[annotation_column_name]
+            annotation_type = annotation_column_name.split(divider)[1]
+            table = table.withColumn(
+              'uploads', annotation_udf(
+                  ###
+              )
+            )        
     return table
 
-def __create_data_rows_udf(row_data_col, global_key_col, external_id_col, metadata_name_key_to_schema_bytes):
-    """ Function to-be-wrapped into a pyspark UDF that will create data row dict values (without metadata)
-    Args:
-        row_data_col                        :   Required (str) - Row data URL column name
-        global_key_col                      :   Required (str) - Global Key colunmn name             
-        external_id_col                     :   Required (str) - External ID column name
-        metadata_name_key_to_schema_bytes   :   Required (bytes) - Bytearray representation of a dictionary where {key=metadata_field_name_key : value=metadata_schema_id}  
-    Returns:
-        Data row upload value as-a-dictionary with complete key/value pairs for "row_data", "external_id", and "global_key", and an empty list for key "metadata_fields"
+def create_upload_dicts(row_data_col, global_key_col, external_id_col, metadata_name_key_to_schema_bytes,
+                        project_id_col_name, project_id_col_value, project_id_str,
+                        dataset_id_col_name, dataset_id_col_value, dataset_id_str,
+                        attachment_index_bytes, annotation_index_bytes, metadata_index_bytes):
+    """ Function to-be-wrapped in a UDF that creates upload dict values (without metadata, attachments or annotations)
     """
     metadata_name_key_to_schema = json.loads(metadata_name_key_to_schema_bytes)
-    return {"row_data" : row_data_col, "external_id" : external_id_col, "global_key" : global_key_col, "metadata_fields" : [{"schema_id" : metadata_name_key_to_schema["lb_integration_source"], "value" : "Databricks"}]}  
+    if project_id_col_name:
+        projectId = project_id_col_value
+    elif project_id_str:
+        projectId = project_id_str
+    else:
+        projectId = ""    
+    if dataset_id_col_name:
+        datasetId = dataset_id_col_value
+    else dataset_id_str:
+        datasetId = dataset_id_str        
+    data_row_dict = {
+        "row_data" : row_data_col, "external_id" : external_id_col, "global_key" : global_key_col,
+        "metadata_fields" : [{"schema_id" : metadata_name_key_to_schema["lb_integration_source"], "value" : "Databricks"}]},
+        "attachments" : []
+    }
+    return { "data_row" : data_row_dict, "project_id" : projectId, "dataset_id" : datasetId, "annotations" : [] }
 
-def __add_metadata_udf(metadata_value_col, data_row_col, metadata_field_name_key, metadata_name_key_to_schema_bytes, metadata_index_bytes, divider):
-    """ Function to-be-wrapped into a pyspark UDF that will add a single metadata field / value pair to data row dict metdata lists
-    Args:
-        metadata_value_col                  :   Required (str) - Metadata value column name
-        data_row_col                        :   Required (str) - Data Row Upload column name
-        metadata_field_name_key             :   Required (str) - Metadata field name
-        metadata_name_key_to_schema_bytes   :   Required (bytes) - Bytearray representation of a converter dictionary where {key=metadata_field_name_key : value=metadata_schema_id}  
-        metadata_index_bytes                :   Required (bytes) - Bytearray representation of a converter dictionary where {key=metadata_field_name_key : value=metadata_type} - metadata_type must be one of "enum", "string", "datetime" or "number"
-        divider                             :   Required (str) - String delimiter for all name keys generated for parent/child schemas
-    Returns:
-        Data row upload as-a-dictionary
+def create_metadata(uploads_col, metadata_field_name, metadata_col_value, metadata_type, metadata_name_key_to_schema_bytes, divider):
+    """ Function to-be-wrapped in a UDF that adds metadata fields to your upload dict
     """  
     metadata_name_key_to_schema = json.loads(metadata_name_key_to_schema_bytes)
-    metadata_type = json.loads(metadata_index_bytes)[str(metadata_field_name_key)]
-    if (metadata_value_col is not None) or (str(metadata_value_col) != ""):
-        metadata_value_name_key = f"{metadata_field_name_key}{divider}{metadata_value_col}"
-        input_metadata_value = metadata_value_col if metadata_type != "enum" else metadata_name_key_to_schema[metadata_value_name_key]
-        data_row_col['metadata_fields'].append({"schema_id":metadata_name_key_to_schema[str(metadata_field_name_key)],"value":input_metadata_value})
-    return data_row_col
+    input_metadata = process_metadata_value(
+        metadata_value=metadata_col_value, metadata_type=metadata_type, parent_name=metadata_field_name, 
+        metadata_name_key_to_schema=metadata_name_key_to_schema, divider=divider
+    )            
+    if input_metadata:
+        uploads_col["data_row"]["metadata_fields"].append({"schema_id" : metadata_name_key_to_schema[metadata_field_name], "value" : input_metadata})
+    return uploads_col
+
+def create_attachments(uploads_col, attachment_type, attachment_col_value):
+    """ Function to-be-wrapped in a UDF that adds attachments to your upload dict
+    """  
+    if attachment_col_value:
+        uploads_col["data_row"]["attachments"].append({"type" : attachment_type, "value" : attachment_col_value})
+    return uploads_col  
+
+def create_annotations(uploads_col, project_id_to_ontology_index_bytes, divider):
+    """ Function to-be-wrapped in a UDF that adds attachments to your upload dict
+    """  
+    project_id_to_ontology_index = json.loads(project_id_to_ontology_index_bytes)
+    ontology_index = project_id_to_ontology_index[uploads_col["project_id"]]
+    uploads_col["annotations"].extend(
+        create_ndjsons(
+            top_level_name=annotation_index[column_name],
+            annotation_inputs=row_dict[column_name],
+            ontology_index=ontology_index,
+            mask_method=mask_method,
+            divider=divider    
+        )
+    )
+    return uploads_col  
+  
+  
