@@ -39,7 +39,7 @@ from labelbase.metadata import get_metadata_schema_to_name_key, process_metadata
 from labelbase.ontology import get_ontology_schema_to_name_path
 from labelbase.annotate import create_ndjsons
 
-def create_upload_dict(client:labelboxClient, table:table:pyspark.sql.dataframe.DataFrame, table_dict:dict, 
+def create_upload_dict(client:labelboxClient, table:table:pyspark.sql.dataframe.DataFrame,
                        row_data_col:str, global_key_col:str, external_id_col:str, 
                        dataset_id_col:str, dataset_id:str,
                        project_id_col:str, project_id:str,
@@ -49,7 +49,6 @@ def create_upload_dict(client:labelboxClient, table:table:pyspark.sql.dataframe.
     Args:
         client                      :   Required (labelbox.client.Client) - Labelbox Client object        
         table                       :   Required (pandas.core.frame.DataFrame) - Pandas DataFrame                
-        table_dict                  :   Required (dict) - Pandas DataFrame as dict with df.to_dict("records")
         row_data_col                :   Required (str) - Column containing asset URL or raw text
         global_key_col              :   Required (str) - Column name containing the data row global key - defaults to row data
         external_id_col             :   Required (str) - Column name containing the data row external ID - defaults to global key
