@@ -188,8 +188,7 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
 
 def create_upload_dicts(row_data_col, global_key_col, external_id_col, metadata_name_key_to_schema_bytes,
                         project_id_col_name, project_id_col_value, project_id_str,
-                        dataset_id_col_name, dataset_id_col_value, dataset_id_str,
-                        attachment_index_bytes, annotation_index_bytes, metadata_index_bytes):
+                        dataset_id_col_name, dataset_id_col_value, dataset_id_str):
     """ Function to-be-wrapped in a UDF that creates upload dict values (without metadata, attachments or annotations)
     """
     metadata_name_key_to_schema = json.loads(metadata_name_key_to_schema_bytes)
