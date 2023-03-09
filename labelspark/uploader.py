@@ -94,7 +94,7 @@ def create_upload_dict(client:labelboxClient, table:pyspark.sql.dataframe.DataFr
     res = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
     for x in res:           
         upload_dict[x["dataset_id"]][x["data_row"]["global_key"]] = {
-            "data_row" : x["data_row"],
+            "data_row" : x["data_row"].asDict(),
             "project_id" : x["project_id"],
             "annotations" : x["annotations"]
         }          
