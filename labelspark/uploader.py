@@ -86,7 +86,7 @@ def create_upload_dict(client:labelboxClient, table:pyspark.sql.dataframe.DataFr
     uploads_table = create_uploads_column(
         client=client, table=table, row_data_col=row_data_col, global_key_col=global_key_col, external_id_col=external_id_col, 
         dataset_id_col=dataset_id_col, dataset_id=dataset_id, project_id_col=project_id_col, project_id=project_id, metadata_index=metadata_index, 
-        attachment_index=attachment_index, annotation_index=annotation_index, metadata_name_key_to_schema=metadata_name_key_to_schema, 
+        attachment_index=attachment_index, annotation_index=annotation_index, 
         upload_method=upload_method, mask_method=mask_method, divider=divider, verbose=verbose 
     )
     # Query your uploads column and create your upload dict
@@ -142,11 +142,13 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
         StructField("dataset_id", StringType()), StructField("project_id", StringType()),
         StructField("annotations", ArrayType(MapType(StringType(), StringType(), True)))    
     ])       
+    x = get_metadata_schema_to_name_key(client=client, divider=divider, invert=True) # Get metadata dict where {key=name : value=schema_id}
+    metadata_name_key_to_schema_bytes = json.dumps(x) # Convert reference dict to bytes    
     # Run a UDF to create row values
     uplads_udf = udf(create_upload_dicts, upload_schema)    
     table = table.withColumn(
       'uploads', uplads_udf(
-          row_data_col, global_key_col, external_id_col, lit(json.dumps(metadata_name_key_to_schema)),
+          row_data_col, global_key_col, external_id_col, lit(metadata_name_key_to_schema_bytes),
           lit(project_id_col), project_id_col, project_id, lit(dataset_id_col), dataset_id_col, dataset_id
       )
     )
@@ -154,18 +156,17 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
     if attachment_index:
         attachments_udf = udf(create_attachments, upload_schema)  # Create a UDF
         for attachment_column_name in attachment_index: # Run this UDF for each attachment column in the attachment index
-            table = table.withColumn('uploads', attachments_udf("uploads", lit(attachment_index[attachment_column_name]), attachment_column_name))        
+            attachment_type = attachment_index[attachment_column_name]
+            table = table.withColumn('uploads', attachments_udf("uploads", lit(attachment_type), attachment_column_name))        
     # Run a UDF to add metadata, if applicable
     if metadata_index:
         metadata_udf = udf(create_metadata, upload_schema) # Create a UDF
-        x = get_metadata_schema_to_name_key(client=client, divider=divider, invert=True) # Get metadata dict where {key=name : value=schema_id}
-        metadata_name_key_to_schema_bytes = json.dumps(x) # Convert reference dict to bytes
         for metadata_field_name in metadata_index: # Run this UDF for each metadata field name in the metadata index
             metadata_type = metadata_index[metadata_field_name]
             metadata_column_name = f"metadata{divider}{metadata_type}{divider}{metadata_field_name}"
             table = table.withColumn(
                 'uploads', metadata_udf(
-                    "uploads", lit(metadata_field_name), metadata_column_name, lit(metadata_type), metadata_name_key_to_schema_bytes, lit(divider)
+                    "uploads", lit(metadata_field_name), metadata_column_name, lit(metadata_type), lit(metadata_name_key_to_schema_bytes), lit(divider)
                 )
             )    
     # Run a UDF to add annotations, if applicable 
