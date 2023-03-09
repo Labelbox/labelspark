@@ -116,15 +116,15 @@ class Client:
             project_id_col=project_id_col, project_id=project_id,
             metadata_index=metadata_index, attachment_index=attachment_index, annotation_index=annotation_index,
             upload_method=upload_method, mask_method=mask_method, divider=divider, verbose=verbose
-        )      
+        )    
+        
+        return upload_dict
                 
         # Upload your data rows to Labelbox - update upload_dict if global keys are modified during upload
         data_row_upload_results, upload_dict = batch_create_data_rows(
             client=self.lb_client, upload_dict=upload_dict, 
             skip_duplicates=skip_duplicates, divider=divider, verbose=verbose
         )
-        
-        return upload_dict
         
         # Bath to project attempt
         if batch_action: 
