@@ -131,6 +131,7 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
         for projectId in project_ids:
             ontology = client.get_project(projectId).ontology()
             project_id_to_ontology_index[projectId] = get_ontology_schema_to_name_path(ontology=ontology,divider=divider,invert=True,detailed=True)    
+    project_id_to_ontology_index_bytes = json.dumps(project_id_to_ontology_index)          
     # Create your upload column's syntax
     upload_schema = StructType([
         StructField(
