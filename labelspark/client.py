@@ -91,9 +91,7 @@ class Client:
             get_unique_values_function=get_unique_values,
             divider=divider, verbose=verbose, extra_client=None
         )
-        
-        print(row_data_col, global_key_col, external_id_col, project_id_col, dataset_id_col, metadata_index, attachment_index, annotation_index)
-        
+                
         # Determine if we're batching and/or uploading annotations
         batch_action, annotate_action = determine_actions(
             dataset_id=dataset_id, dataset_id_col=dataset_id_col, 
