@@ -181,7 +181,7 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
             annotation_type = annotation_column_name.split(divider)[1]
             table = table.withColumn(
               'uploads', annotation_udf(
-                  "uploads", top_level_feature_name, annotation_column_name, lit(mask_method), project_id_to_ontology_index_bytes, lit(divider)
+                  "uploads", lit(top_level_feature_name), annotation_column_name, lit(mask_method), lit(project_id_to_ontology_index_bytes), lit(divider)
               )
             )        
     return table
