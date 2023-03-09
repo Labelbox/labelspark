@@ -86,8 +86,8 @@ def create_upload_dict(client:labelboxClient, table:pyspark.sql.dataframe.DataFr
     uploads_table = create_uploads_column(
         client=client, table=table, row_data_col=row_data_col, global_key_col=global_key_col, external_id_col=external_id_col, 
         dataset_id_col=dataset_id_col, dataset_id=dataset_id, project_id_col=project_id_col, project_id=project_id, metadata_index=metadata_index, 
-        attachment_index=attachment_index, annotation_index=annotation_index, project_id_to_ontology_index=project_id_to_ontology_index, 
-        metadata_name_key_to_schema=metadata_name_key_to_schema, upload_method=upload_method, mask_method=mask_method, divider=divider, verbose=verbose 
+        attachment_index=attachment_index, annotation_index=annotation_index, metadata_name_key_to_schema=metadata_name_key_to_schema, 
+        upload_method=upload_method, mask_method=mask_method, divider=divider, verbose=verbose 
     )
     # Query your uploads column and create your upload dict
     res = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
