@@ -147,10 +147,12 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
     metadata_name_key_to_schema_bytes = json.dumps(x) # Convert reference dict to bytes    
     # Run a UDF to create row values
     uplads_udf = udf(create_upload_dicts, upload_schema)    
+    project_input = lit(project_id_col) if not project_id_col else project_id_col
+    dataset_input = lit(dataset_id_col) if not dataset_id_col else dataset_id_col   
     table = table.withColumn(
       'uploads', uplads_udf(
           row_data_col, global_key_col, external_id_col, lit(metadata_name_key_to_schema_bytes),
-          lit(project_id_col), project_id_col, project_id, lit(dataset_id_col), dataset_id_col, dataset_id
+          lit(project_id_col), project_input, lit(project_id), lit(dataset_id_col), dataset_input, lit(dataset_id)
       )
     )
     # Run a UDF to add attachments, if applicable  
