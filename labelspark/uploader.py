@@ -38,6 +38,7 @@ from labelspark.connector import get_table_length, get_unique_values
 from labelbase.metadata import get_metadata_schema_to_name_key, process_metadata_value
 from labelbase.ontology import get_ontology_schema_to_name_path
 from labelbase.annotate import create_ndjsons
+import json
 
 def create_upload_dict(client:labelboxClient, table:pyspark.sql.dataframe.DataFrame,
                        row_data_col:str, global_key_col:str, external_id_col:str, 
