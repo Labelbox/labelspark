@@ -37,7 +37,7 @@ def get_unique_values(table:pyspark.sql.dataframe.DataFrame, col:str, extra_clie
     Returns:
         List of unique values from a spark table column as strings
     """
-    return [str(x.__getitem__(column_name)) for x in table.select(column_name).distinct().collect()]
+    return [str(x.__getitem__(col)) for x in table.select(col).distinct().collect()]
 
 def add_col(table:pyspark.sql.dataframe.DataFrame, col:str, default_value="", extra_client=None):
     """ Adds a column of empty values to an existing Spark Dataframe
@@ -49,7 +49,7 @@ def add_col(table:pyspark.sql.dataframe.DataFrame, col:str, default_value="", ex
     Returns:
         Your table with a new column given the column_name and default_value  
     """
-    table = table.withColumn(column_name, pyspark.sql.functions.lit(default_value))
+    table = table.withColumn(col, pyspark.sql.functions.lit(default_value))
     return table
 
 def get_table_length(table:pyspark.sql.dataframe.DataFrame, extra_client=None):
