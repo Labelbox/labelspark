@@ -93,12 +93,12 @@ def create_upload_dict(client:labelboxClient, table:pyspark.sql.dataframe.DataFr
     # Query your uploads column and create your upload dict
     res = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
     for x in res:           
-        for annot in x["annotations"]:
-            print(annot)
+        stringtype_annotations = x["annotations"]
+        annotations = stringtype_annotations
         upload_dict[x["dataset_id"]][x["data_row"]["global_key"]] = {
             "data_row" : x["data_row"].asDict(),
             "project_id" : x["project_id"],
-            "annotations" : x["annotations"]
+            "annotations" : stringtype_annotations
         }          
     return upload_dict
 
@@ -143,9 +143,8 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
                 StructField("attachments", ArrayType(MapType(StringType(), StringType(), True)))
             ])
         ),
-        StructField("dataset_id", StringType()), StructField("project_id", StringType()),
-        StructField("annotations", ArrayType(MapType(StringType(), StringType(), True)))    
-    ])       
+        StructField("dataset_id", StringType()), StructField("project_id", StringType()), StructField("annotations", StringType())
+    ])
     x = get_metadata_schema_to_name_key(client=client, divider=divider, invert=True) # Get metadata dict where {key=name : value=schema_id}
     metadata_name_key_to_schema_bytes = json.dumps(x) # Convert reference dict to bytes    
     # Run a UDF to create row values
@@ -244,5 +243,8 @@ def create_annotations(uploads_col, top_level_feature_name, annotations, mask_me
             divider=divider    
         )
     )
-    return uploads_col  
-  
+    return uploads_col
+
+def process_stringtype_annotations(stringtype_annotations):
+    return stringtype_annotations
+    
