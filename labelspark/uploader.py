@@ -93,12 +93,11 @@ def create_upload_dict(client:labelboxClient, table:pyspark.sql.dataframe.DataFr
     # Query your uploads column and create your upload dict
     res = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
     for x in res:           
-        stringtype_annotations = x["annotations"]
-        annotations = stringtype_annotations
+        annotations = [string_to_ndjson(x) for x in x["annotations"]] # Process stringtype versions of ndjson dictionaries
         upload_dict[x["dataset_id"]][x["data_row"]["global_key"]] = {
             "data_row" : x["data_row"].asDict(),
             "project_id" : x["project_id"],
-            "annotations" : stringtype_annotations
+            "annotations" : annotations
         }          
     return upload_dict
 
@@ -245,6 +244,22 @@ def create_annotations(uploads_col, top_level_feature_name, annotations, mask_me
     )
     return uploads_col
 
-def process_stringtype_annotations(stringtype_annotations):
-    return stringtype_annotations
+import json
+
+def string_to_ndjson(annotation):
+    for key, value in annotation.items():
+        trigger = True if key in ["bbox", "mask", "point", "line", "polygon", "classifications"] else False
+        if key == "bbox":
+            x = value.replace('width=', '"width":').replace('top=', '"top":').replace('left=', '"left":').replace('height=', '"height":') 
+        if key == "mask":
+            x = value.replace('png=', '"png":"')
+            x = x[:-1] + '"}'
+        if key in ["point", "line", "polygon"]:
+            x = value.replace('x=', '"x":').replace('y=', '"y":')
+        if (key == "answers") or ((key=="answer") and ("}" in value)) or (key=="classifications"):
+            trigger = True
+            x = value.replace('answer=', '"answer": "').replace(', classifications=', '", "classifications":').replace('name=', '"name":"').replace(', "name":', '", "name":',).replace('}', '"}').replace(']"', ']').replace('"{', '{').replace('}"', '}')
+        if trigger:
+            annotation[key] = json.loads(x)
+    return annotation
     
