@@ -48,7 +48,7 @@ Once set up, you can run the following core functions:
 
 ### Importing Data from a CSV
 
-|            Notebook            |  Github  |    Google Colab   |
+|            Notebook            |  Github  |
 | ------------------------------ | -------- | ----------------- |
 | Basics: Data Rows from URLs            | [![Github](https://img.shields.io/badge/GitHub-100000?logo=github&logoColor=white)](notebooks/intro.ipynb)  | 
 | Data Rows with Metadata        | [![Github](https://img.shields.io/badge/GitHub-100000?logo=github&logoColor=white)](notebooks/metadata.ipynb)  | 
@@ -59,7 +59,7 @@ Once set up, you can run the following core functions:
 
 ### Exporting Data to a CSV
 
-|            Notebook            |  Github  |    Google Colab   |
+|            Notebook            |  Github  |
 | ------------------------------ | -------- | ----------------- |
 | Exporting Data to a CSV            | [![Github](https://img.shields.io/badge/GitHub-100000?logo=github&logoColor=white)](notebooks/export.ipynb)  |
 ------
