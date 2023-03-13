@@ -246,18 +246,18 @@ def create_annotations(uploads_col, top_level_feature_name, annotations, mask_me
 
 def string_to_ndjson(annotation):
     for key, value in annotation.items():
-        trigger = True if key in ["bbox", "mask", "point", "line", "polygon"] else False
+        x = ""
         if key == "bbox":
             x = value.replace('width=', '"width":').replace('top=', '"top":').replace('left=', '"left":').replace('height=', '"height":') 
-        if key == "mask":
-            x = value.replace('png=', '"png":"')
-            x = x[:-1] + '"}'
-        if key in ["point", "line", "polygon"]:
+        elif key == "mask":
+            x = value.replace('png=', '"png":"')[:-1] + '"}'
+        elif key in ["point", "line", "polygon"]:
             x = value.replace('x=', '"x":').replace('y=', '"y":')
-        if (key == "answers") or ((key=="answer") and ("}" in value)) or (key=="classifications"):
-            trigger = True
+        elif (key == "answers") or ((key=="answer") and ("}" in value)) or (key=="classifications"):
             x = value.replace('answer=', '"answer": "').replace(', classifications=', '", "classifications":').replace('name=', '"name":"').replace(', "name":', '", "name":',).replace('}', '"}').replace(']"', ']').replace('"{', '{').replace('}"', '}')
-        if trigger:
+        else:
+            pass
+        if x:
             annotation[key] = json.loads(x)
     return annotation
     
