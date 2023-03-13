@@ -124,8 +124,6 @@ class Client:
             skip_duplicates=skip_duplicates, divider=divider, verbose=verbose
         )
         
-        return upload_dict
-        
         # Bath to project attempt
         if batch_action: 
             try:
