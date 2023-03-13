@@ -248,7 +248,7 @@ import json
 
 def string_to_ndjson(annotation):
     for key, value in annotation.items():
-        trigger = True if key in ["bbox", "mask", "point", "line", "polygon", "classifications"] else False
+        trigger = True if key in ["bbox", "mask", "point", "line", "polygon"] else False
         if key == "bbox":
             x = value.replace('width=', '"width":').replace('top=', '"top":').replace('left=', '"left":').replace('height=', '"height":') 
         if key == "mask":
