@@ -236,6 +236,8 @@ def create_annotations(uploads_col, top_level_feature_name, annotations, mask_me
     """  
     project_id_to_ontology_index = json.loads(project_id_to_ontology_index_bytes)
     ontology_index = project_id_to_ontology_index[uploads_col["project_id"]]
+    print(uploads_col)
+    print(uploads_col["annotations"])
     uploads_col["annotations"].extend(
         create_ndjsons(
             top_level_name=top_level_feature_name,
