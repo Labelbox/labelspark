@@ -49,7 +49,7 @@ Once set up, you can run the following core functions:
 ### Importing Data from a CSV
 
 |            Notebook            |  Github  |
-| ------------------------------ | -------- | ----------------- |
+| ------------------------------ | -------- |
 | Basics: Data Rows from URLs            | [![Github](https://img.shields.io/badge/GitHub-100000?logo=github&logoColor=white)](notebooks/intro.ipynb)  | 
 | Data Rows with Metadata        | [![Github](https://img.shields.io/badge/GitHub-100000?logo=github&logoColor=white)](notebooks/metadata.ipynb)  | 
 | Data Rows with Attachments     | [![Github](https://img.shields.io/badge/GitHub-100000?logo=github&logoColor=white)](notebooks/attachments.ipynb)  | 
@@ -60,6 +60,8 @@ Once set up, you can run the following core functions:
 ### Exporting Data to a CSV
 
 |            Notebook            |  Github  |
-| ------------------------------ | -------- | ----------------- |
-| Exporting Data to a CSV            | [![Github](https://img.shields.io/badge/GitHub-100000?logo=github&logoColor=white)](notebooks/export.ipynb)  |
+| ------------------------------ | -------- |
+| Exporting Data to a Spark Table*            | [![Github](https://img.shields.io/badge/GitHub-100000?logo=github&logoColor=white)](notebooks/export.ipynb)  |
 ------
+
+* = Coming Soon
