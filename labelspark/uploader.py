@@ -145,16 +145,17 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
                 StructField("attachments", ArrayType(MapType(StringType(), StringType(), True)))
             ])
         ),
-        StructField("dataset_id", StringType()), StructField("project_id", StringType()), StructField("annotations", StringType())
+        StructField("dataset_id", StringType()), StructField("project_id", StringType()), 
+        StructField("annotations", ArrayType(MapType(StringType(), StringType(), True)))
     ])
     x = get_metadata_schema_to_name_key(client=client, divider=divider, invert=True) # Get metadata dict where {key=name : value=schema_id}
     metadata_name_key_to_schema_bytes = json.dumps(x) # Convert reference dict to bytes    
     # Run a UDF to create row values
-    uplads_udf = udf(create_upload_dicts, upload_schema)    
+    data_rows_udf = udf(create_data_row, upload_schema)    
     project_input = lit(project_id_col) if not project_id_col else project_id_col
     dataset_input = lit(dataset_id_col) if not dataset_id_col else dataset_id_col   
     table = table.withColumn(
-      'uploads', uplads_udf(
+      'uploads', data_rows_udf(
           row_data_col, global_key_col, external_id_col, lit(metadata_name_key_to_schema_bytes),
           lit(project_id_col), project_input, lit(project_id), lit(dataset_id_col), dataset_input, lit(dataset_id)
       )
@@ -164,7 +165,7 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
         attachments_udf = udf(create_attachments, upload_schema)  # Create a UDF
         for attachment_column_name in attachment_index: # Run this UDF for each attachment column in the attachment index
             attachment_type = attachment_index[attachment_column_name]
-            table = table.withColumn('uploads', attachments_udf("uploads", lit(attachment_type), attachment_column_name))        
+            table = table.withColumn('uploads', attachments_udf('uploads', lit(attachment_type), attachment_column_name))        
     # Run a UDF to add metadata, if applicable
     if metadata_index:
         metadata_udf = udf(create_metadata, upload_schema) # Create a UDF
@@ -189,9 +190,9 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
             )        
     return table
 
-def create_upload_dicts(row_data_col, global_key_col, external_id_col, metadata_name_key_to_schema_bytes,
-                        project_id_col_name, project_id_col_value, project_id_str,
-                        dataset_id_col_name, dataset_id_col_value, dataset_id_str):
+def create_data_row(row_data_col, global_key_col, external_id_col, metadata_name_key_to_schema_bytes,
+                    project_id_col_name, project_id_col_value, project_id_str,
+                    dataset_id_col_name, dataset_id_col_value, dataset_id_str):
     """ Function to-be-wrapped in a UDF that creates upload dict values (without metadata, attachments or annotations)
     """
     metadata_name_key_to_schema = json.loads(metadata_name_key_to_schema_bytes)
@@ -236,8 +237,6 @@ def create_annotations(uploads_col, top_level_feature_name, annotations, mask_me
     """  
     project_id_to_ontology_index = json.loads(project_id_to_ontology_index_bytes)
     ontology_index = project_id_to_ontology_index[uploads_col["project_id"]]
-    print(uploads_col)
-    print(uploads_col["annotations"])
     uploads_col["annotations"].extend(
         create_ndjsons(
             top_level_name=top_level_feature_name,
