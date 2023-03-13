@@ -173,7 +173,7 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
             metadata_column_name = f"metadata{divider}{metadata_type}{divider}{metadata_field_name}"
             table = table.withColumn(
                 'uploads', metadata_udf(
-                    "uploads", lit(metadata_field_name), metadata_column_name, lit(metadata_type), lit(metadata_name_key_to_schema_bytes), lit(divider)
+                    'uploads', lit(metadata_field_name), metadata_column_name, lit(metadata_type), lit(metadata_name_key_to_schema_bytes), lit(divider)
                 )
             )    
     # Run a UDF to add annotations, if applicable 
@@ -184,7 +184,7 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
             annotation_type = annotation_column_name.split(divider)[1]
             table = table.withColumn(
               'uploads', annotation_udf(
-                  "uploads", lit(top_level_feature_name), annotation_column_name, lit(mask_method), lit(project_id_to_ontology_index_bytes), lit(divider)
+                  'uploads', lit(top_level_feature_name), annotation_column_name, lit(mask_method), lit(project_id_to_ontology_index_bytes), lit(divider)
               )
             )        
     return table
