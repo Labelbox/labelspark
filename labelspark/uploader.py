@@ -39,6 +39,7 @@ from labelbase.metadata import get_metadata_schema_to_name_key, process_metadata
 from labelbase.ontology import get_ontology_schema_to_name_path
 from labelbase.annotate import create_ndjsons
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def create_upload_dict(client:labelboxClient, table:pyspark.sql.dataframe.DataFrame,
                        row_data_col:str, global_key_col:str, external_id_col:str, 
@@ -92,13 +93,15 @@ def create_upload_dict(client:labelboxClient, table:pyspark.sql.dataframe.DataFr
     )
     # Query your uploads column and create your upload dict
     res = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
-    for x in res:           
-        annotations = [string_to_ndjson(x) for x in x["annotations"]] # Process stringtype versions of ndjson dictionaries
-        upload_dict[x["dataset_id"]][x["data_row"]["global_key"]] = {
-            "data_row" : x["data_row"].asDict(),
-            "project_id" : x["project_id"],
-            "annotations" : annotations
-        }          
+    with ThreadPoolExecutor() as exc:
+        futures = [exc.submit(process_upload, x) for x in res]
+        for future in as_completed(futures):
+            y = future.result()
+            upload_dict[y["dataset_id"]][y["data_row"]["global_key"] = {
+                "data_row" : y["data_row"],
+                "project_id" : y["project_id"],
+                "annotations" : y["annotations"]
+            }        
     return upload_dict
 
 def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.DataFrame,
@@ -244,7 +247,20 @@ def create_annotations(uploads_col, top_level_feature_name, annotations, mask_me
     )
     return uploads_col
 
+def process_upload(x):
+    """ Function to-be-multithreaded that processes rows into the upload_dict format
+    """
+    annotations = [string_to_ndjson(x) for x in x["annotations"]]
+    return {
+        "data_row" : x["data_row"].asDict(),
+        "project_id" : x["project_id"],
+        "annotations" : annotations,
+        "dataset_id" : x["dataset_id"]
+    }
+
 def string_to_ndjson(annotation):
+    """ Function that takes stringtype representation of an annotation and converts it into the Labelbox ndjson format
+    """
     for key, value in annotation.items():
         x = ""
         if key == "bbox":
