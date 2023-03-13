@@ -244,8 +244,6 @@ def create_annotations(uploads_col, top_level_feature_name, annotations, mask_me
     )
     return uploads_col
 
-import json
-
 def string_to_ndjson(annotation):
     for key, value in annotation.items():
         trigger = True if key in ["bbox", "mask", "point", "line", "polygon"] else False
