@@ -97,7 +97,7 @@ def create_upload_dict(client:labelboxClient, table:pyspark.sql.dataframe.DataFr
         futures = [exc.submit(process_upload, x) for x in res]
         for future in as_completed(futures):
             y = future.result()
-            upload_dict[y["dataset_id"]][y["data_row"]["global_key"] = {
+            upload_dict[y["dataset_id"]][y["data_row"]["global_key"]] = {
                 "data_row" : y["data_row"],
                 "project_id" : y["project_id"],
                 "annotations" : y["annotations"]
