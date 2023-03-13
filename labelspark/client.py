@@ -172,7 +172,6 @@ class Client:
                                 annotation_data_row_id["dataRow"] = {"id" : global_key_to_data_row_id[global_key]}
                                 project_id_to_upload_dict[project_id].append(annotation_data_row_id)
                 # Labelbase command to upload annotations to projects
-                return project_id_to_upload_dict
                 annotation_upload_results = batch_upload_annotations(
                     client=self.lb_client, project_id_to_upload_dict=project_id_to_upload_dict, how=upload_method, verbose=verbose
                 )
