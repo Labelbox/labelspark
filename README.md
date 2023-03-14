@@ -35,9 +35,9 @@ client = ls.Client(api_key)
 
 Once set up, you can run the following core functions:
 
-- `client.create_data_rows_from_table()` :   Creates Labelbox data rows (and metadata) given a Pandas table
+- `client.create_data_rows_from_table()` :   Creates Labelbox data rows (and metadata) given a Spark Table DataFrame
 
-- `client.export_to_table()` :  Exports labels (and metadata) from a given Labelbox project and creates a Pandas DataFrame
+- `client.export_to_table()` :  Exports labels (and metadata) from a given Labelbox project and creates a Spark DataFrame
 
 ## Example Notebooks
 
