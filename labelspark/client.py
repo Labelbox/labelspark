@@ -42,16 +42,20 @@ class Client:
                                             - "png" converts URLs to png byte strings             
             divider                 :   Optional (str) - String delimiter for schema name keys and suffix added to duplocate global keys 
         """
+        spark = SparkSession.builder.appName('labelspark_export').getOrCreate()  
+        
         flattened_labels_dict = export_and_flatten_labels(
             client=self.lb_client, project=project, 
             include_metadata=include_metadata, include_performance=include_performance, include_agreement=include_agreement,
             mask_method=mask_method, verbose=verbose, divider=divider
         )
         
+        df = spark.createDataFrame(flattened_labels_dict)
+        
         if verbose:
             print(f"Success: DataFrame generated")
         
-        return flattened_labels_dict        
+        return df        
     
     def create_data_rows_from_table(
         self, table:pyspark.sql.dataframe.DataFrame, dataset_id:str="", project_id:str="", priority:int=5, 
