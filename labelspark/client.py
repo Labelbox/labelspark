@@ -48,8 +48,6 @@ class Client:
             mask_method=mask_method, verbose=verbose, divider=divider
         )
         
-        
-        
         if verbose:
             print(f"Success: DataFrame generated")
         
