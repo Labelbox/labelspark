@@ -56,10 +56,8 @@ Once set up, you can run the following core functions:
 
 |            Notebook            |  Github  |
 | ------------------------------ | -------- |
-| Exporting Data to a Spark Table*            | [![Github](https://img.shields.io/badge/GitHub-100000?logo=github&logoColor=white)](notebooks/export.ipynb)  |
+| Exporting Data to a Spark Table            | [![Github](https://img.shields.io/badge/GitHub-100000?logo=github&logoColor=white)](notebooks/export.ipynb)  |
 ------
-
-* = Coming Soon
 
 While using LabelSpark, you will likely also use the Labelbox SDK (e.g. for programmatic ontology creation). These resources will help familiarize you with the Labelbox Python SDK: 
 * [Visit our docs](https://docs.labelbox.com/reference/install-python-sdk) to learn how the SDK works
