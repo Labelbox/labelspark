@@ -10,7 +10,6 @@ connector.py holds the following helper functions specific to pandas DataFrames:
 """
 
 import pyspark
-from labelbase.connector import validate_column_name_change
 
 def check_pyspark():
     try:

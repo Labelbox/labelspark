@@ -29,11 +29,11 @@ uploader.py holds the function create_upload_dict() -- which creates the followi
 
 This uniforms input formats so that they can leverage labelbase - Labelbox base code for best practices
 """
-
 import pyspark
 from pyspark.sql.functions import lit, udf
 from pyspark.sql.types import StructType, StructField, StringType, MapType, ArrayType
 from labelbox import Client as labelboxClient
+from labelbox.schema.ontology import Ontology as labelboxOntology
 from labelspark.connector import get_table_length, get_unique_values
 from labelbase.metadata import get_metadata_schema_to_name_key, process_metadata_value
 from labelbase.ontology import get_ontology_schema_to_name_path
@@ -79,11 +79,7 @@ def create_upload_dict(client:labelboxClient, table:pyspark.sql.dataframe.DataFr
     unique_global_key_count = len(get_unique_values(table=table, col=global_key_col, extra_client=extra_client))
     if table_length != unique_global_key_count:
         print(f"Warning: Your global key column is not unique - upload will resume, only uploading 1 data row per unique global key")      
-    # Initiate your upload dict, where they keys are all your dataset IDs
-    if dataset_id:
-        upload_dict = {dataset_id : {}}
-    else:
-        upload_dict = {id : {} for id in get_unique_values(table=table, col=dataset_id_col)}
+
     # Create your column of upload dict values using UDFs
     uploads_table = create_uploads_column(
         client=client, table=table, row_data_col=row_data_col, global_key_col=global_key_col, external_id_col=external_id_col, 
@@ -92,15 +88,19 @@ def create_upload_dict(client:labelboxClient, table:pyspark.sql.dataframe.DataFr
         upload_method=upload_method, mask_method=mask_method, divider=divider, verbose=verbose 
     )
     # Query your uploads column and create your upload dict
-    res = uploads_table.select("uploads").rdd.map(lambda x: x.uploads.asDict()).collect()
+
+    upload_dict = {}
+    res = uploads_table.select("uploads").rdd.map(lambda x: {'data_row': {'row_data': x['uploads']['data_row']['row_data'], 'global_key': x['uploads']['data_row']['global_key'], 'external_id': x['uploads']['data_row']['external_id'], 'metadata_fields': x['uploads']['data_row']['metadata_fields'], 'attachments': x['uploads']['data_row']['attachments']}, 'dataset_id': x['uploads']['dataset_id'], 'project_id': x['uploads']['project_id'], 'annotations': x['uploads']['annotations']}).collect()
+
     with ThreadPoolExecutor() as exc:
         futures = [exc.submit(process_upload, x) for x in res]
         for future in as_completed(futures):
             y = future.result()
-            upload_dict[y["dataset_id"]][y["data_row"]["global_key"]] = {
+            upload_dict[y["data_row"]["global_key"]] = {
                 "data_row" : y["data_row"],
                 "project_id" : y["project_id"],
-                "annotations" : y["annotations"]
+                "annotations" : y["annotations"],
+                "dataset_id" : y["dataset_id"]
             }        
     return upload_dict
 
@@ -134,7 +134,10 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
     if (project_ids!=[]) and (annotation_index!={}) and (upload_method in ["mal", "import"]): # If we're uploading annotations
         for projectId in project_ids:
             ontology = client.get_project(projectId).ontology()
-            project_id_to_ontology_index[projectId] = get_ontology_schema_to_name_path(ontology=ontology,divider=divider,invert=True,detailed=True)    
+            project_type = client.get_project(projectId).media_type
+            project_id_to_ontology_index[projectId] = get_ontology_schema_to_name_path(ontology=ontology,divider=divider,invert=True,detailed=True)
+            project_id_to_ontology_index[projectId]['project_type'] = str(project_type)
+
     project_id_to_ontology_index_bytes = json.dumps(project_id_to_ontology_index)          
     # Create your upload column's syntax
     upload_schema = StructType([
@@ -153,21 +156,25 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
     # Run a UDF to create row values
     data_rows_udf = udf(create_data_row, upload_schema)    
     project_input = lit(project_id_col) if not project_id_col else project_id_col
-    dataset_input = lit(dataset_id_col) if not dataset_id_col else dataset_id_col   
+    dataset_input = lit(dataset_id_col) if not dataset_id_col else dataset_id_col
+
     table = table.withColumn(
       'uploads', data_rows_udf(
           row_data_col, global_key_col, external_id_col, lit(metadata_name_key_to_schema_bytes),
           lit(project_id_col), project_input, lit(project_id), lit(dataset_id_col), dataset_input, lit(dataset_id)
       )
     )
+    print(table.collect()[0])
     # Run a UDF to add attachments, if applicable  
     if attachment_index:
+        print(attachment_index)
         attachments_udf = udf(create_attachments, upload_schema)  # Create a UDF
         for attachment_column_name in attachment_index: # Run this UDF for each attachment column in the attachment index
             attachment_type = attachment_index[attachment_column_name]
             table = table.withColumn('uploads', attachments_udf('uploads', lit(attachment_type), attachment_column_name))        
     # Run a UDF to add metadata, if applicable
     if metadata_index:
+        print(metadata_index)
         metadata_udf = udf(create_metadata, upload_schema) # Create a UDF
         for metadata_field_name in metadata_index: # Run this UDF for each metadata field name in the metadata index
             metadata_type = metadata_index[metadata_field_name]
@@ -185,7 +192,7 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
             annotation_type = annotation_column_name.split(divider)[1]
             table = table.withColumn(
               'uploads', annotation_udf(
-                  'uploads', lit(top_level_feature_name), annotation_column_name, lit(mask_method), lit(project_id_to_ontology_index_bytes), lit(divider)
+                  'uploads', lit(top_level_feature_name), annotation_column_name, lit(mask_method), lit(annotation_type), lit(project_id_to_ontology_index_bytes), lit(divider)
               )
             )        
     return table
@@ -232,28 +239,36 @@ def create_attachments(uploads_col, attachment_type, attachment_col_value):
         uploads_col["data_row"]["attachments"].append({"type" : attachment_type, "value" : attachment_col_value})
     return uploads_col  
 
-def create_annotations(uploads_col, top_level_feature_name, annotations, mask_method, project_id_to_ontology_index_bytes, divider):
+def create_annotations(uploads_col, top_level_feature_name, annotations, mask_method, annotation_type, project_id_to_ontology_index_bytes, divider):
     """ Function to-be-wrapped in a UDF that adds attachments to your upload dict
     """  
     project_id_to_ontology_index = json.loads(project_id_to_ontology_index_bytes)
     ontology_index = project_id_to_ontology_index[uploads_col["project_id"]]
-    uploads_col["annotations"].extend(
-        create_ndjsons(
-            top_level_name=top_level_feature_name,
-            annotation_inputs=annotations,
-            ontology_index=ontology_index,
-            mask_method=mask_method,
-            divider=divider    
+    print(annotations)
+    if annotations is not None:
+        annotation_list = []
+        ndjsons = create_ndjsons(
+                    top_level_name=top_level_feature_name,
+                    annotation_inputs=annotations,
+                    ontology_index=ontology_index,
+                    mask_method=mask_method,
+                    divider=divider    
+                )
+        for ndjson in ndjsons:
+            annotation_list.append({annotation_type:json.dumps(ndjson)})
+        print(annotation_list)
+        uploads_col["annotations"].extend(
+            annotation_list
         )
-    )
     return uploads_col
+
 
 def process_upload(x):
     """ Function to-be-multithreaded that processes rows into the upload_dict format
     """
     annotations = [string_to_ndjson(x) for x in x["annotations"]]
     return {
-        "data_row" : x["data_row"].asDict(),
+        "data_row" : x["data_row"],
         "project_id" : x["project_id"],
         "annotations" : annotations,
         "dataset_id" : x["dataset_id"]
@@ -263,18 +278,6 @@ def string_to_ndjson(annotation):
     """ Function that takes stringtype representation of an annotation and converts it into the Labelbox ndjson format
     """
     for key, value in annotation.items():
-        x = ""
-        if key == "bbox":
-            x = value.replace('width=', '"width":').replace('top=', '"top":').replace('left=', '"left":').replace('height=', '"height":') 
-        elif key == "mask":
-            x = value.replace('png=', '"png":"')[:-1] + '"}'
-        elif key in ["point", "line", "polygon"]:
-            x = value.replace('x=', '"x":').replace('y=', '"y":')
-        elif (key == "answers") or ((key=="answer") and ("}" in value)) or (key=="classifications"):
-            x = value.replace('answer=', '"answer": "').replace(', classifications=', '", "classifications":').replace('name=', '"name":"').replace(', "name":', '", "name":',).replace('}', '"}').replace(']"', ']').replace('"{', '{').replace('}"', '}')
-        else:
-            pass
-        if x:
-            annotation[key] = json.loads(x)
+        annotation[key] = json.loads(value)
     return annotation
     
