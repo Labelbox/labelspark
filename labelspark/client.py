@@ -1,21 +1,17 @@
 import pyspark
 from labelbox import Client as labelboxClient
-from labelspark.labelspark.uploader import create_upload_dict
-from labelspark.labelspark.connector import check_pyspark, get_col_names, get_unique_values
-from labelbase.labelbase.connector import validate_columns, determine_actions
-from labelbase.labelbase.uploader import create_global_key_to_data_row_id_dict, batch_create_data_rows, batch_rows_to_project, batch_upload_annotations
-from labelbase.labelbase.downloader import export_and_flatten_labels
-from labelpandas.labelpandas.client import Client as lp_client
-# from labelpandas.labelpandas.client import upsert_data_rows_from_table
-from itertools import chain
-from pyspark.sql.types import StructType, StructField, ArrayType, IntegerType, DoubleType, StringType, DataType
+from labelspark.uploader import create_upload_dict
+from labelspark.connector import check_pyspark, get_col_names, get_unique_values
+from labelbase.connector import validate_columns, determine_actions
+from labelbase.uploader import create_global_key_to_data_row_id_dict, batch_create_data_rows, batch_rows_to_project, batch_upload_annotations
+from labelbase.downloader import export_and_flatten_labels
 import json
 from delta import *
 from uuid import uuid4
-from labelbase.labelbase.downloader import *
-from labelbase.labelbase.uploader import *
-from labelbase.labelbase.connector import *
-from labelspark.labelspark import connector, uploader
+from labelbase.downloader import *
+from labelbase.uploader import *
+from labelbase.connector import *
+from labelspark import connector, uploader
 
 class Client:
     """ A Databricks Client, containing a Labelbox Client, to-be-run a Databricks notebook
@@ -215,7 +211,6 @@ class Client:
             # external_id_col   : column with name "external_id" - defaults to global_key_col
             # project_id_col    : column with name "project_id" - defaults to ""
             # dataset_id_col    : column with name "dataset_id" - defaults to ""
-            # external_id_col   : column with name "external_id" - defaults to global_key_col        
             # metadata_index    : Dictonary where {key=metadata_field_name : value=metadata_type} - defaults to {}
             # attachment_index  : Dictonary where {key=column_name : value=attachment_type} - defaults to {}
             # annotation_index  : Dictonary where {key=column_name : value=top_level_feature_name} - defaults to {}
