@@ -142,9 +142,9 @@ class Client:
                 raise ValueError(f"argument spark_config must contain a 'jars' key containing the path to the gcs-connector-hadoop2-latest.jar file to connect to GCS")
             if type(spark_config['jars']) == str:
                 jar_file = spark_config['jars']
-            elif type(spark_config['jar']) == list:
+            elif type(spark_config['jars']) == list:
                 jar_file = ''
-                for file in spark_config['jar']:
+                for file in spark_config['jars']:
                     jar_file += file + ', '
                 jar_file = jar_file[:-2]
             builder = pyspark.sql.SparkSession.builder.appName("labelspark_export").config("spark.jars.packages", "io.delta:delta-core_2.12:2.2.0").config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension").config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog").config("spark.jars", jar_file)
