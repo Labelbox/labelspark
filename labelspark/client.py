@@ -142,9 +142,9 @@ class Client:
                 raise ValueError(f"argument spark_config must contain a 'jars' key containing the path to the gcs-connector-hadoop2-latest.jar file to connect to GCS")
             if type(spark_config['jars']) == str:
                 jar_file = spark_config['jars']
-            elif type(spark_config['jar']) == list:
+            elif type(spark_config['jars']) == list:
                 jar_file = ''
-                for file in spark_config['jar']:
+                for file in spark_config['jars']:
                     jar_file += file + ', '
                 jar_file = jar_file[:-2]
             builder = pyspark.sql.SparkSession.builder.appName("labelspark_export").config("spark.jars.packages", "io.delta:delta-core_2.12:2.2.0").config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension").config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog").config("spark.jars", jar_file)
@@ -188,7 +188,7 @@ class Client:
     def create_data_rows_from_table(
         self, table:pyspark.sql.dataframe.DataFrame, dataset_id:str="", project_id:str="", priority:int=5, 
         upload_method:str="", skip_duplicates:bool=False, model_id="", model_run_id="", mask_method:str="png", verbose:bool=False, divider="///"):
-        """ Creates Labelbox data rows given a Pandas table and a Labelbox Dataset
+        """ Creates Labelbox data rows given a Spark DataFrame and a Labelbox Dataset
         Args:
             table               :   Required (pyspark.sql.dataframe.DataFrame) - Spark Table
             dataset_id          :   Required (str) - Labelbox dataset ID to add data rows to - only necessary if no "dataset_id" column exists            
@@ -392,7 +392,7 @@ class Client:
             # }
         # }
         # This uniforms the upload to use labelbase - Labelbox base code for best practices
-        upload_dict = uploader.create_upload_dict( # Using labelpandas.uploader.create_upload_dict
+        upload_dict = uploader.create_upload_dict( # Using labelspark.uploader.create_upload_dict
             client=self.lb_client, table=table, 
             row_data_col=x["row_data_col"], global_key_col=x["global_key_col"], external_id_col=x["external_id_col"], 
             dataset_id_col=x["dataset_id_col"], dataset_id=dataset_id, 
