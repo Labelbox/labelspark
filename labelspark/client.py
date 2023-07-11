@@ -73,7 +73,7 @@ class Client:
     
     def export_to_delta_table(self, project, 
         include_metadata:bool=False, include_performance:bool=False, include_agreement:bool=False,
-        verbose:bool=False, mask_method:str="png", divider="///", table_path="", write_mode="overwrite", spark:pyspark.sql.SparkSession=None, spark_config:dict={}):
+        verbose:bool=False, mask_method:str="png", divider="///", table_path="", write_mode="append", spark:pyspark.sql.SparkSession=None, spark_config:dict={}):
         """ Creates a Spark Dataframe and saves it to a Databricks Delta Table
         Args:
             project                 :   Required (str / lablebox.Project) - Labelbox Project ID or lablebox.Project object to export labels from
@@ -108,6 +108,9 @@ class Client:
                                                     "credentials": <path to GCS service account json keyfile>
                                                 }"""
 
+        if write_mode not in ['append', 'overwrite']:
+            raise ValueError(f"The Delta Table write mode must be either 'append' or 'overwrite', the write mode provided is {write_mode}")
+        
         if spark is None:
             spark = self.get_spark_session(table_path, spark_config)
         sc = spark.sparkContext
