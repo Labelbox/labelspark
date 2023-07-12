@@ -164,7 +164,6 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
           lit(project_id_col), project_input, lit(project_id), lit(dataset_id_col), dataset_input, lit(dataset_id)
       )
     )
-    print(table.collect()[0])
     # Run a UDF to add attachments, if applicable  
     if attachment_index:
         print(attachment_index)

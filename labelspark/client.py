@@ -253,7 +253,7 @@ class Client:
             annotation_index=x["annotation_index"],
             upload_method=upload_method, mask_method=mask_method, divider=divider, verbose=verbose
         )    
-                
+
         # Upload your data rows to Labelbox - update upload_dict if global keys are modified during upload
         data_row_upload_results, upload_dict = batch_create_data_rows(
             client=self.lb_client, upload_dict=upload_dict, 
@@ -263,26 +263,9 @@ class Client:
         # Bath to project attempt
         if actions['batch']: 
             try:
-                # Create a dictionary where {key=global_key : value=data_row_id}
-                global_keys_list = []
-                for dataset_id in upload_dict.keys():
-                    for global_key in upload_dict[dataset_id].keys():
-                        global_keys_list.append(global_key)
-                global_key_to_data_row_id = create_global_key_to_data_row_id_dict(
-                    client=self.lb_client, global_keys=global_keys_list
-                )     
-                # Create batch dictionary where {key=project_id : value=[data_row_ids]}   
-                project_id_to_batch_dict = {}                
-                for dataset_id in upload_dict:
-                    for global_key in upload_dict[dataset_id].keys():                    
-                        project_id = upload_dict[dataset_id][global_key]["project_id"]
-                        if project_id:
-                            if project_id not in project_id_to_batch_dict.keys():
-                                project_id_to_batch_dict[project_id] = []
-                            project_id_to_batch_dict[project_id].append(global_key_to_data_row_id[global_key])
                 # Labelbase command to batch data rows to projects
                 batch_to_project_results = batch_rows_to_project(
-                    client=self.lb_client, project_id_to_batch_dict=project_id_to_batch_dict, 
+                    client=self.lb_client, upload_dict=upload_dict, 
                     priority=priority, verbose=verbose
                 )
             except Exception as e:
