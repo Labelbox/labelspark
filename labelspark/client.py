@@ -277,6 +277,12 @@ class Client:
         # Annotation upload attempt
         if actions['annotate']:
             try:               
+                global_keys_list = []
+                for global_key in upload_dict.keys():
+                    global_keys_list.append(global_key)
+                global_key_to_data_row_id = create_global_key_to_data_row_id_dict(
+                    client=self.lb_client, global_keys=global_keys_list
+                )   
                 # Create batch dictionary where {key=project_id : value=[data_row_ids]}
                 project_id_to_upload_dict = {}
                 for dataset_id in upload_dict.keys():
