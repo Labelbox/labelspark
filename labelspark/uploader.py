@@ -75,7 +75,7 @@ def create_upload_dict(client:labelboxClient, table:pyspark.sql.dataframe.DataFr
     # Check that global key column is entirely unique values
     table_length = get_table_length(table=table, extra_client=extra_client)
     if verbose:
-        print(f'Creating upload list - {table_length} rows in Pandas DataFrame')
+        print(f'Creating upload list - {table_length} rows in Spark DataFrame')
     unique_global_key_count = len(get_unique_values(table=table, col=global_key_col, extra_client=extra_client))
     if table_length != unique_global_key_count:
         print(f"Warning: Your global key column is not unique - upload will resume, only uploading 1 data row per unique global key")      
