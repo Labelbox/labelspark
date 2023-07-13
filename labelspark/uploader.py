@@ -166,14 +166,12 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
     )
     # Run a UDF to add attachments, if applicable  
     if attachment_index:
-        print(attachment_index)
         attachments_udf = udf(create_attachments, upload_schema)  # Create a UDF
         for attachment_column_name in attachment_index: # Run this UDF for each attachment column in the attachment index
             attachment_type = attachment_index[attachment_column_name]
             table = table.withColumn('uploads', attachments_udf('uploads', lit(attachment_type), attachment_column_name))        
     # Run a UDF to add metadata, if applicable
     if metadata_index:
-        print(metadata_index)
         metadata_udf = udf(create_metadata, upload_schema) # Create a UDF
         for metadata_field_name in metadata_index: # Run this UDF for each metadata field name in the metadata index
             metadata_type = metadata_index[metadata_field_name]
@@ -243,7 +241,6 @@ def create_annotations(uploads_col, top_level_feature_name, annotations, mask_me
     """  
     project_id_to_ontology_index = json.loads(project_id_to_ontology_index_bytes)
     ontology_index = project_id_to_ontology_index[uploads_col["project_id"]]
-    print(annotations)
     if annotations is not None:
         annotation_list = []
         ndjsons = create_ndjsons(
@@ -255,7 +252,6 @@ def create_annotations(uploads_col, top_level_feature_name, annotations, mask_me
                 )
         for ndjson in ndjsons:
             annotation_list.append({annotation_type:json.dumps(ndjson)})
-        print(annotation_list)
         uploads_col["annotations"].extend(
             annotation_list
         )
