@@ -62,6 +62,8 @@ class Client:
             for key in label.keys():
                 if divider in key:
                     label[key] = json.dumps(label[key])
+                elif label[key] == None:
+                    label[key] = ""
 
         columns = set().union(*(d.keys() for d in flattened_labels_dict))
         struct_fields = []
@@ -132,8 +134,12 @@ class Client:
                 elif label[key] == None:
                     label[key] = ""
 
-        
-        df = spark.createDataFrame(sc.parallelize(flattened_labels_dict))
+        columns = set().union(*(d.keys() for d in flattened_labels_dict))
+        struct_fields = []
+        for column in columns:
+            struct_fields.append(pyspark.sql.types.StructField(column, pyspark.sql.types.StringType(), True))
+        schema = pyspark.sql.types.StructType(struct_fields)
+        df = spark.createDataFrame(data=flattened_labels_dict, schema=schema)
         df.write.format("delta").mode(write_mode).save(table_path)
         
         if verbose:
