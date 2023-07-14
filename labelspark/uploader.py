@@ -75,7 +75,7 @@ def create_upload_dict(client:labelboxClient, table:pyspark.sql.dataframe.DataFr
     # Check that global key column is entirely unique values
     table_length = get_table_length(table=table, extra_client=extra_client)
     if verbose:
-        print(f'Creating upload list - {table_length} rows in Pandas DataFrame')
+        print(f'Creating upload list - {table_length} rows in Spark DataFrame')
     unique_global_key_count = len(get_unique_values(table=table, col=global_key_col, extra_client=extra_client))
     if table_length != unique_global_key_count:
         print(f"Warning: Your global key column is not unique - upload will resume, only uploading 1 data row per unique global key")      
@@ -164,17 +164,14 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
           lit(project_id_col), project_input, lit(project_id), lit(dataset_id_col), dataset_input, lit(dataset_id)
       )
     )
-    print(table.collect()[0])
     # Run a UDF to add attachments, if applicable  
     if attachment_index:
-        print(attachment_index)
         attachments_udf = udf(create_attachments, upload_schema)  # Create a UDF
         for attachment_column_name in attachment_index: # Run this UDF for each attachment column in the attachment index
             attachment_type = attachment_index[attachment_column_name]
             table = table.withColumn('uploads', attachments_udf('uploads', lit(attachment_type), attachment_column_name))        
     # Run a UDF to add metadata, if applicable
     if metadata_index:
-        print(metadata_index)
         metadata_udf = udf(create_metadata, upload_schema) # Create a UDF
         for metadata_field_name in metadata_index: # Run this UDF for each metadata field name in the metadata index
             metadata_type = metadata_index[metadata_field_name]
@@ -244,7 +241,6 @@ def create_annotations(uploads_col, top_level_feature_name, annotations, mask_me
     """  
     project_id_to_ontology_index = json.loads(project_id_to_ontology_index_bytes)
     ontology_index = project_id_to_ontology_index[uploads_col["project_id"]]
-    print(annotations)
     if annotations is not None:
         annotation_list = []
         ndjsons = create_ndjsons(
@@ -256,7 +252,6 @@ def create_annotations(uploads_col, top_level_feature_name, annotations, mask_me
                 )
         for ndjson in ndjsons:
             annotation_list.append({annotation_type:json.dumps(ndjson)})
-        print(annotation_list)
         uploads_col["annotations"].extend(
             annotation_list
         )
