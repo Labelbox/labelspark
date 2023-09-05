@@ -13,6 +13,6 @@ setup(
     description='Labelbox Connector for Databricks',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    install_requires=["labelbox[data]", "pyspark", "packaging", "labelbase"],
+    install_requires=["labelbox[data]", "pyspark", "packaging", "labelbase", "delta-spark"],
     extras_require={'dev': ['pylint']}
 )
