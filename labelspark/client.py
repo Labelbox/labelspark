@@ -170,6 +170,7 @@ class Client:
             spark.conf.set("fs.AbstractFileSystem.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem")
             spark.conf.set("spark.delta.logStore.gs.impl", "io.delta.storage.GCSLogStore")
             spark.conf.set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+            spark.conf.set("spark.databricks.delta.defaults.columnMapping.mode", "name")
             
         elif save_path[:5] == 's3a:/':
             if 'AWS_ACCESS_KEY' not in spark_config.keys() or 'AWS_SECRET_KEY' not in spark_config.keys():
@@ -191,16 +192,18 @@ class Client:
             hadoop_conf.set("fs.s3a.access.key", spark_config['AWS_ACCESS_KEY'])
             hadoop_conf.set("fs.s3a.secret.key", spark_config['AWS_SECRET_KEY'])
             sc._conf.setAll([('spark.delta.logStore.class','org.apache.spark.sql.delta.storage.S3SingleDriverLogStore')])
+            spark.conf.set("spark.databricks.delta.defaults.columnMapping.mode", "name")
             spark.sparkContext._conf.getAll()
 
         else:
             builder = pyspark.sql.SparkSession.builder.appName("labelspark_export").config("spark.jars.packages", "io.delta:delta-core_2.12:2.2.0").config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension").config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
             spark = configure_spark_with_delta_pip(builder).getOrCreate()
+            spark.conf.set("spark.databricks.delta.defaults.columnMapping.mode", "name")
         return spark
     
     def create_data_rows_from_table(
-        self, table:pyspark.sql.dataframe.DataFrame, dataset_id:str="", project_id:str="", priority:int=5, 
-        upload_method:str="", skip_duplicates:bool=False, model_id="", model_run_id="", mask_method:str="png", verbose:bool=False, divider="///"):
+        self, table:pyspark.sql.dataframe.DataFrame, column_mappings:dict={}, dataset_id:str="", project_id:str="", priority:int=5, 
+        upload_method:str="", skip_duplicates:bool=True, model_id="", model_run_id="", mask_method:str="png", verbose:bool=False, divider="///"):
         """ Creates Labelbox data rows given a Spark DataFrame and a Labelbox Dataset
         Args:
             table               :   Required (pyspark.sql.dataframe.DataFrame) - Spark Table
@@ -227,11 +230,17 @@ class Client:
             # metadata_index    : Dictonary where {key=metadata_field_name : value=metadata_type} - defaults to {}
             # attachment_index  : Dictonary where {key=column_name : value=attachment_type} - defaults to {}
             # annotation_index  : Dictonary where {key=column_name : value=top_level_feature_name} - defaults to {}
-        x = validate_columns(
-            client=self.lb_client, table=table,
-            get_columns_function=get_col_names,
-            get_unique_values_function=get_unique_values,
-            divider=divider, verbose=verbose, extra_client=None
+        if column_mappings != {}:
+            x = get_columns_from_mapping(client=self.lb_client, table=table, column_mappings=column_mappings,
+                get_columns_function=get_col_names,
+                get_unique_values_function=get_unique_values,
+                divider=divider, verbose=verbose, extra_client=None)
+        else:
+            x = validate_columns(
+                client=self.lb_client, table=table,
+                get_columns_function=get_col_names,
+                get_unique_values_function=get_unique_values,
+                divider=divider, verbose=verbose, extra_client=None
         )
                 
         # Determine if we're batching and/or uploading annotations
@@ -326,16 +335,16 @@ class Client:
             "annotation_upload_results" : annotation_upload_results
         }
     
-    def create_data_rows_from_delta_table(self, dataset_id:str="", project_id:str="", priority:int=5, 
-        upload_method:str="", skip_duplicates:bool=False, mask_method:str="png", verbose:bool=False, divider="///", table_path="", spark:pyspark.sql.SparkSession=None, spark_config:dict={}):
+    def create_data_rows_from_delta_table(self, column_mappings:dict={}, dataset_id:str="", project_id:str="", priority:int=5, 
+        upload_method:str="", skip_duplicates:bool=True, mask_method:str="png", verbose:bool=False, divider="///", table_path="", spark:pyspark.sql.SparkSession=None, spark_config:dict={}):
         
         if spark is None:
             spark = self.get_spark_session(table_path, spark_config)
 
         df = spark.read.load(table_path)
-        return(self.create_data_rows_from_table(table=df, dataset_id=dataset_id, project_id=project_id, priority=priority, upload_method=upload_method, skip_duplicates=skip_duplicates, mask_method=mask_method, verbose=verbose, divider=divider))
+        return(self.create_data_rows_from_table(table=df, column_mappings=column_mappings, dataset_id=dataset_id, project_id=project_id, priority=priority, upload_method=upload_method, skip_duplicates=skip_duplicates, mask_method=mask_method, verbose=verbose, divider=divider))
 
-    def upsert_data_rows_from_table(self, table:pyspark.sql.dataframe.DataFrame, dataset_id:str="", project_id:str="", model_id:str="", upload_method:str="", mask_method:str="png", priority:int=5, model_run_id:str="", batch_data_rows:bool=False, annotation_method:str="", verbose:bool=False, divider:str="///"):
+    def upsert_data_rows_from_table(self, table:pyspark.sql.dataframe.DataFrame, dataset_id:str="", project_id:str="", model_id:str="", upload_method:str="", column_mappings:dict={}, mask_method:str="png", priority:int=5, model_run_id:str="", batch_data_rows:bool=False, verbose:bool=False, divider:str="///"):
         """ Performs the following actions if proper information is provided:
                 - batches data rows to projects (if batch_data_rows == True) * **
                 - uploads annotations as pre-labels or submitted labels * **

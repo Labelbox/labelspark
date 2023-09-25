@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='labelspark',
-    version='0.7.33',
+    version='0.7.34',
     author='Labelbox',
     author_email="raphael@labelbox.com",      
     packages=find_packages(),
@@ -13,6 +13,6 @@ setup(
     description='Labelbox Connector for Databricks',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    install_requires=["labelbox[data]", "pyspark", "packaging", "labelbase"],
+    install_requires=["labelbox[data]", "pyspark", "packaging", "labelbase", "delta-spark"],
     extras_require={'dev': ['pylint']}
 )
