@@ -157,6 +157,8 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
     data_rows_udf = udf(create_data_row, upload_schema)    
     project_input = lit(project_id_col) if not project_id_col else project_id_col
     dataset_input = lit(dataset_id_col) if not dataset_id_col else dataset_id_col
+    print(dataset_input)
+    print(dataset_id_col)
 
     table = table.withColumn(
       'uploads', data_rows_udf(
