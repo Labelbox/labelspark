@@ -217,6 +217,7 @@ def create_data_row(row_data_col, global_key_col, external_id_col, metadata_name
         "metadata_fields" : [{"schema_id" : metadata_name_key_to_schema["lb_integration_source"], "value" : "Databricks"}],
         "attachments" : []
     }
+    print(data_row_dict)
     return { "data_row" : data_row_dict, "project_id" : projectId, "dataset_id" : datasetId, "annotations" : [] }
 
 def create_metadata(uploads_col, metadata_field_name, metadata_col_value, metadata_type, metadata_name_key_to_schema_bytes, divider):
