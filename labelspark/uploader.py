@@ -157,12 +157,11 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
     data_rows_udf = udf(create_data_row, upload_schema)    
     project_input = lit(project_id_col) if not project_id_col else project_id_col
     dataset_input = lit(dataset_id_col) if not dataset_id_col else dataset_id_col
-    print(dataset_input)
-    print(dataset_id_col)
+    external_id_input = lit(external_id_col) if not external_id_col else external_id_col
 
     table = table.withColumn(
       'uploads', data_rows_udf(
-          row_data_col, global_key_col, external_id_col, lit(metadata_name_key_to_schema_bytes),
+          row_data_col, global_key_col, lit(external_id_col), external_id_input, lit(metadata_name_key_to_schema_bytes),
           lit(project_id_col), project_input, lit(project_id), lit(dataset_id_col), dataset_input, lit(dataset_id)
       )
     )
@@ -196,7 +195,7 @@ def create_uploads_column(client:labelboxClient, table:pyspark.sql.dataframe.Dat
             )        
     return table
 
-def create_data_row(row_data_col, global_key_col, external_id_col, metadata_name_key_to_schema_bytes,
+def create_data_row(row_data_col, global_key_col, external_id_col_name, external_id_col_value, metadata_name_key_to_schema_bytes,
                     project_id_col_name, project_id_col_value, project_id_str,
                     dataset_id_col_name, dataset_id_col_value, dataset_id_str):
     """ Function to-be-wrapped in a UDF that creates upload dict values (without metadata, attachments or annotations)
@@ -211,13 +210,14 @@ def create_data_row(row_data_col, global_key_col, external_id_col, metadata_name
     if dataset_id_col_name:
         datasetId = dataset_id_col_value
     else:
-        datasetId = dataset_id_str        
+        datasetId = dataset_id_str
     data_row_dict = {
-        "row_data" : row_data_col, "external_id" : external_id_col, "global_key" : global_key_col,
+        "row_data" : row_data_col, "global_key" : global_key_col,
         "metadata_fields" : [{"schema_id" : metadata_name_key_to_schema["lb_integration_source"], "value" : "Databricks"}],
         "attachments" : []
     }
-    print(data_row_dict)
+    if external_id_col_name:
+        data_row_dict["external_id"] = external_id_col_value
     return { "data_row" : data_row_dict, "project_id" : projectId, "dataset_id" : datasetId, "annotations" : [] }
 
 def create_metadata(uploads_col, metadata_field_name, metadata_col_value, metadata_type, metadata_name_key_to_schema_bytes, divider):
