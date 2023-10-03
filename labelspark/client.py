@@ -12,6 +12,7 @@ from labelbase.downloader import *
 from labelbase.uploader import *
 from labelbase.connector import *
 from labelspark import connector, uploader
+import logging
 
 class Client:
     """ A Databricks Client, containing a Labelbox Client, to-be-run a Databricks notebook
@@ -29,6 +30,8 @@ class Client:
         upsert_labelbox_metadata    :   Updates Labelbox metadata given a Databricks Spark table
     """
     def __init__(self, lb_api_key=None, lb_endpoint='https://api.labelbox.com/graphql', lb_enable_experimental=False, lb_app_url="https://app.labelbox.com"):
+        #Set logging level to ERROR. When logging level is WARN, many messages will show up when vetting global keys
+        logging.basicConfig(level = logging.ERROR)
         self.lb_client = labelboxClient(lb_api_key, endpoint=lb_endpoint, enable_experimental=lb_enable_experimental, app_url=lb_app_url)
         check_pyspark()
         
