@@ -292,7 +292,7 @@ class Client:
         create_start = time()
         data_row_upload_results, upload_dict = batch_create_data_rows(
             client=self.lb_client, upload_dict=upload_dict, 
-            skip_duplicates=skip_duplicates, divider=divider, verbose=verbose
+            skip_duplicates=skip_duplicates, divider=divider, batch_size=50000, verbose=verbose
         )
         print(f"Total time to upload data rows to LB: {time()-create_start}")
         
