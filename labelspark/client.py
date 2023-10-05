@@ -13,6 +13,7 @@ from labelbase.uploader import *
 from labelbase.connector import *
 from labelspark import connector, uploader
 import logging
+from time import time
 
 class Client:
     """ A Databricks Client, containing a Labelbox Client, to-be-run a Databricks notebook
@@ -233,6 +234,8 @@ class Client:
             # metadata_index    : Dictonary where {key=metadata_field_name : value=metadata_type} - defaults to {}
             # attachment_index  : Dictonary where {key=column_name : value=attachment_type} - defaults to {}
             # annotation_index  : Dictonary where {key=column_name : value=top_level_feature_name} - defaults to {}
+        create_start_time = time()
+
         if column_mappings != {}:
             x = get_columns_from_mapping(client=self.lb_client, table=table, column_mappings=column_mappings,
                 get_columns_function=get_col_names,
@@ -253,6 +256,9 @@ class Client:
             model_run_id_col=x["model_run_id_col"], upload_method=upload_method, metadata_index=x["metadata_index"], 
             attachment_index=x["attachment_index"], annotation_index=x["annotation_index"], prediction_index=x["prediction_index"]
         )
+
+        print(f"Time to validate table: {time()-create_start_time}")
+
         if not actions["create"]:
             raise ValueError(f"No `dataset_id` argument or `dataset_id` column was provided in table to create data rows")
         
@@ -266,6 +272,9 @@ class Client:
             # }
         # }
         # This uniforms the upload to use labelbase - Labelbox base code for best practices
+
+        upload_start = time()
+
         upload_dict = create_upload_dict(
             client=self.lb_client, table=table, 
             row_data_col=x["row_data_col"], global_key_col=x["global_key_col"], external_id_col=x["external_id_col"], 
@@ -275,12 +284,17 @@ class Client:
             annotation_index=x["annotation_index"],
             upload_method=upload_method, mask_method=mask_method, divider=divider, verbose=verbose
         )    
+        
+        print(f"Time to create upload payload from table: {time() - upload_start}")
 
         # Upload your data rows to Labelbox - update upload_dict if global keys are modified during upload
+
+        create_start = time()
         data_row_upload_results, upload_dict = batch_create_data_rows(
             client=self.lb_client, upload_dict=upload_dict, 
             skip_duplicates=skip_duplicates, divider=divider, verbose=verbose
         )
+        print(f"Total time to upload data rows to LB: {time()-create_start}")
         
         # Bath to project attempt
         if actions['batch']: 
@@ -330,7 +344,9 @@ class Client:
             except Exception as e:
                 annotation_upload_results = e
         else:
-            annotation_upload_results = []          
+            annotation_upload_results = []  
+
+        print(f"Total create_data_rows_from_table() time: {time() - create_start_time}")        
             
         return {
             "data_row_upload_results" : data_row_upload_results, 
