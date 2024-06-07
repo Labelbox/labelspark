@@ -63,3 +63,21 @@ While using LabelSpark, you will likely also use the Labelbox SDK (e.g. for prog
 * [Visit our docs](https://docs.labelbox.com/reference/install-python-sdk) to learn how the SDK works
 * Checkout our [notebook examples](https://github.com/Labelbox/labelspark/tree/master/notebooks) to follow along with interactive tutorials
 * View the Labelbox [API reference](https://labelbox-python.readthedocs.io/en/latest/).
+
+
+## Provenance
+[![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
+
+To enhance the software supply chain security of Labelbox's users, as of 0.7.4, every release contains a [SLSA Level 3 Provenance](https://github.com/slsa-framework/slsa-github-generator/blob/main/internal/builders/generic/README.md) document.  
+This document provides detailed information about the build process, including the repository and branch from which the package was generated.
+
+By using the [SLSA framework's official verifier](https://github.com/slsa-framework/slsa-verifier), you can verify the provenance document to ensure that the package is from a trusted source. Verifying the provenance helps confirm that the package has not been tampered with and was built in a secure environment.
+
+Example of usage for the 0.7.4 release wheel:
+
+```
+VERSION=0.7.4 #tag
+gh release download 0.7.4 --repo Labelbox/labelspark
+
+slsa-verifier verify-artifact --source-branch master --builder-id 'https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.0.0' --source-uri "git+https://github.com/Labelbox/labelspark" --provenance-path multiple.intoto.jsonl ./labelspark-${VERSION}-py3-none-any.whl
+```
