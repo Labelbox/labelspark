@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='labelspark',
-    version='0.7.35',
+    version='0.7.4',
     author='Labelbox',
     author_email="raphael@labelbox.com",      
     packages=find_packages(),
