@@ -51,7 +51,7 @@ jobs:
 
   publish-python-package-to-release:
     runs-on: ubuntu-latest
-    needs: [provenance_python]
+    needs: [build]
     permissions:
       contents: write    
     steps:
