@@ -13,3 +13,6 @@ from .spark_schema_to_string import spark_schema_to_string
 from .dictionary_collector import dictionary_collector
 from .update_metadata import update_metadata
 from .client import Client
+import warnings
+
+warn(f'The module {__name__} is deprecated.', DeprecationWarning, stacklevel=2)
